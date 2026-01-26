@@ -7,6 +7,10 @@ export interface ElectronAPI {
   app: {
     getVersion: () => Promise<string>;
     getPlatform: () => Promise<NodeJS.Platform>;
+    openFileDialog: (options?: OpenDialogOptions) => Promise<string[]>;
+    saveFileDialog: (options?: SaveDialogOptions) => Promise<string | null>;
+    readFile: (filePath: string) => Promise<string>;
+    selectDirectory: (options?: { title?: string; defaultPath?: string }) => Promise<string | null>;
   };
 
   // Window controls
@@ -306,4 +310,18 @@ export interface UpdateCheckResultInfo {
   version?: string;
   releaseDate?: string;
   releaseNotes?: string | string[] | null;
+}
+
+// File dialog types
+export interface OpenDialogOptions {
+  title?: string;
+  defaultPath?: string;
+  filters?: Array<{ name: string; extensions: string[] }>;
+  properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles'>;
+}
+
+export interface SaveDialogOptions {
+  title?: string;
+  defaultPath?: string;
+  filters?: Array<{ name: string; extensions: string[] }>;
 }

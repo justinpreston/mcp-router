@@ -330,10 +330,98 @@ export function ManualServerForm({
   };
 
   const handleImportEnv = async () => {
-    // Note: Import from .env file feature requires file dialog API
-    // For now, show a console message - this can be implemented when the API is available
-    console.warn('Import .env file feature requires file dialog API to be exposed via preload');
-    // TODO: Implement when window.electron.app.openFileDialog and readFile are available
+    try {
+      // Open file dialog for .env files
+      const filePaths = await window.electron.app.openFileDialog({
+        title: 'Import Environment File',
+        filters: [
+          { name: 'Environment Files', extensions: ['env'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      });
+
+      if (filePaths.length === 0) {
+        return; // User cancelled
+      }
+
+      // Read the file
+      const content = await window.electron.app.readFile(filePaths[0]!);
+
+      // Parse .env file format
+      const parsedEnv = parseEnvFile(content);
+
+      if (parsedEnv.length === 0) {
+        console.warn('No valid environment variables found in file');
+        return;
+      }
+
+      // Merge with existing env vars (new values override existing)
+      const newEnvVars = [
+        ...formData.env.filter((e) => !parsedEnv.some((p) => p.key === e.key)),
+        ...parsedEnv,
+      ];
+
+      setFormData((prev) => ({
+        ...prev,
+        env: newEnvVars,
+      }));
+
+      console.log(`Imported ${parsedEnv.length} environment variables`);
+    } catch (error) {
+      console.error('Failed to import .env file:', error);
+    }
+  };
+
+  /**
+   * Parse .env file content into key-value pairs.
+   * Handles comments, empty lines, and quoted values.
+   */
+  const parseEnvFile = (content: string): Array<{ key: string; value: string }> => {
+    const lines = content.split('\n');
+    const result: Array<{ key: string; value: string }> = [];
+
+    for (const line of lines) {
+      // Skip empty lines and comments
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      // Find the first = sign
+      const equalIndex = trimmed.indexOf('=');
+      if (equalIndex === -1) {
+        continue;
+      }
+
+      const key = trimmed.substring(0, equalIndex).trim();
+      let value = trimmed.substring(equalIndex + 1).trim();
+
+      // Skip invalid keys
+      if (!key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+        continue;
+      }
+
+      // Handle quoted values
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+
+      // Handle escape sequences in double-quoted strings
+      if (trimmed.substring(equalIndex + 1).trim().startsWith('"')) {
+        value = value
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '\r')
+          .replace(/\\t/g, '\t')
+          .replace(/\\\\/g, '\\')
+          .replace(/\\"/g, '"');
+      }
+
+      result.push({ key, value });
+    }
+
+    return result;
   };
 
   const transportOptions: Array<{ value: TransportType; label: string; icon: React.ReactNode; description: string }> = [

@@ -46,6 +46,10 @@ export const TYPES = {
   // Search
   BM25SearchProvider: Symbol.for('BM25SearchProvider'),
 
+  // App Discovery
+  DxtProcessor: Symbol.for('DxtProcessor'),
+  AppDiscoveryService: Symbol.for('AppDiscoveryService'),
+
   // MCP Transport & Client
   McpAggregator: Symbol.for('McpAggregator'),
   McpClientFactory: Symbol.for('McpClientFactory'),

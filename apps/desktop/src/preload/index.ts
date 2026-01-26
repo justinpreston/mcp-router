@@ -10,6 +10,10 @@ const electronAPI: ElectronAPI = {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+    openFileDialog: (options?: unknown) => ipcRenderer.invoke('app:openFileDialog', options),
+    saveFileDialog: (options?: unknown) => ipcRenderer.invoke('app:saveFileDialog', options),
+    readFile: (filePath: string) => ipcRenderer.invoke('app:readFile', filePath),
+    selectDirectory: (options?: unknown) => ipcRenderer.invoke('app:selectDirectory', options),
   },
 
   // Window controls

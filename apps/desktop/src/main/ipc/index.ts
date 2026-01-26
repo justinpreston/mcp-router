@@ -12,6 +12,7 @@ import { registerSkillsHandlers } from './skills.handler';
 import { registerMemoryHandlers } from './memory.handler';
 import { registerCatalogHandlers } from './catalog.handler';
 import { registerUpdaterHandlers } from './updater.handler';
+import { registerDiscoveryHandlers } from './discovery.handler';
 
 export { registerAppHandlers, registerWindowHandlers } from './app.handler';
 export { registerServerHandlers } from './servers.handler';
@@ -26,6 +27,7 @@ export { registerSkillsHandlers } from './skills.handler';
 export { registerMemoryHandlers } from './memory.handler';
 export { registerCatalogHandlers } from './catalog.handler';
 export { registerUpdaterHandlers } from './updater.handler';
+export { registerDiscoveryHandlers } from './discovery.handler';
 export * from './validation-schemas';
 
 /**
@@ -52,6 +54,7 @@ export function registerAllIpcHandlers(container: Container): void {
   registerMemoryHandlers(container);
   registerCatalogHandlers(container);
   registerUpdaterHandlers(container);
+  registerDiscoveryHandlers(container);
 
   // Setup background tasks
   setupApprovalNotifications(container);

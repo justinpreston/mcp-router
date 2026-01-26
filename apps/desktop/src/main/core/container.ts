@@ -68,6 +68,8 @@ import { LocalEmbeddingProvider, type IEmbeddingProvider } from '@main/services/
 import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
 import { BM25SearchProvider, type ISearchProvider } from '@main/services/catalog/bm25-search.provider';
+import { DxtProcessor, type IDxtProcessor } from '@main/services/catalog/dxt-processor';
+import { AppDiscoveryService, type IAppDiscoveryService } from '@main/services/catalog/app-discovery.service';
 import { SecureHttpServer } from '@main/services/http/secure-http-server.service';
 import { McpAggregator } from '@main/services/mcp/mcp-aggregator.service';
 import { McpClientFactory } from '@main/services/mcp/mcp-client-factory';
@@ -148,6 +150,8 @@ export function createContainer(): Container {
   container.bind<IMemoryService>(TYPES.MemoryService).to(MemoryService);
   container.bind<IAuditService>(TYPES.AuditService).to(AuditService);
   container.bind<ISearchProvider>(TYPES.BM25SearchProvider).to(BM25SearchProvider);
+  container.bind<IDxtProcessor>(TYPES.DxtProcessor).to(DxtProcessor);
+  container.bind<IAppDiscoveryService>(TYPES.AppDiscoveryService).to(AppDiscoveryService);
   container.bind<IToolCatalog>(TYPES.ToolCatalog).to(ToolCatalogService);
 
   // ============================================================================
