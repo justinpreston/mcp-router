@@ -103,3 +103,11 @@ export {
   AddSkillDialog,
   DiscoverSkillsDialog,
 } from './skills';
+
+// Sync features
+export {
+  ClientCard,
+  ClientSyncPanel,
+  type ClientCardProps,
+  type ClientSyncPanelProps,
+} from './sync';
