@@ -43,6 +43,7 @@ import type {
   IProcessHealthMonitor,
   IDeepLinkHandler,
   ITrayService,
+  IClientSyncService,
 } from './interfaces';
 
 // Import implementations (these will be created in subsequent files)
@@ -84,6 +85,9 @@ import { DeepLinkHandler } from '@main/security/deep-link-handler';
 // System Integration
 import { TrayService } from '@main/services/tray/tray.service';
 import { AutoUpdaterService, type IAutoUpdater } from '@main/services/updater';
+
+// Client Sync (AI Hub Feature Parity)
+import { ClientSyncService } from '@main/services/sync';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -181,6 +185,11 @@ export function createContainer(): Container {
   // ============================================================================
   container.bind<ITrayService>(TYPES.TrayService).to(TrayService);
   container.bind<IAutoUpdater>(TYPES.AutoUpdater).to(AutoUpdaterService);
+
+  // ============================================================================
+  // Client Sync (AI Hub Feature Parity)
+  // ============================================================================
+  container.bind<IClientSyncService>(TYPES.ClientSyncService).to(ClientSyncService);
 
   return container;
 }

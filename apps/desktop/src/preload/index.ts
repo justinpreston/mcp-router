@@ -132,6 +132,20 @@ const electronAPI: ElectronAPI = {
     setConfig: (config: unknown) => ipcRenderer.invoke('updater:set-config', config),
   },
 
+  // Client sync
+  sync: {
+    listClients: () => ipcRenderer.invoke('sync:list-clients'),
+    getClientServers: (clientId: string) =>
+      ipcRenderer.invoke('sync:get-client-servers', clientId),
+    isClientInstalled: (clientId: string) =>
+      ipcRenderer.invoke('sync:is-client-installed', clientId),
+    getConfigPath: (clientId: string) => ipcRenderer.invoke('sync:get-config-path', clientId),
+    importFromClient: (clientId: string) =>
+      ipcRenderer.invoke('sync:import-from-client', clientId),
+    exportToClient: (clientId: string, serverIds?: string[]) =>
+      ipcRenderer.invoke('sync:export-to-client', { clientId, serverIds }),
+  },
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     const validChannels = [
@@ -144,6 +158,8 @@ const electronAPI: ElectronAPI = {
       'memory:stored',
       'catalog:refreshed',
       'updater:state-changed',
+      'sync:import-complete',
+      'sync:export-complete',
     ];
 
     if (validChannels.includes(channel)) {
@@ -173,6 +189,8 @@ const electronAPI: ElectronAPI = {
       'memory:stored',
       'catalog:refreshed',
       'updater:state-changed',
+      'sync:import-complete',
+      'sync:export-complete',
     ];
 
     if (validChannels.includes(channel)) {

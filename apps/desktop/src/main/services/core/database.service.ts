@@ -341,6 +341,17 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled);
         `,
       },
+      {
+        name: '002_memory_type_importance',
+        up: `
+          -- Add type and importance columns to memories table
+          ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'note';
+          ALTER TABLE memories ADD COLUMN importance REAL NOT NULL DEFAULT 0.5;
+          
+          -- Create index for type-based queries
+          CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
+        `,
+      },
     ];
 
     // Apply pending migrations

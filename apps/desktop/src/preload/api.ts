@@ -115,6 +115,16 @@ export interface ElectronAPI {
     setConfig: (config: Partial<UpdateConfigInfo>) => Promise<UpdateConfigInfo>;
   };
 
+  // Client sync (AI Hub feature parity)
+  sync: {
+    listClients: () => Promise<ClientAppInfo[]>;
+    getClientServers: (clientId: string) => Promise<Record<string, ClientMCPServerConfigInfo>>;
+    isClientInstalled: (clientId: string) => Promise<boolean>;
+    getConfigPath: (clientId: string) => Promise<string>;
+    importFromClient: (clientId: string) => Promise<SyncResultInfo>;
+    exportToClient: (clientId: string, serverIds?: string[]) => Promise<SyncResultInfo>;
+  };
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
   once: (channel: string, callback: (...args: unknown[]) => void) => void;
@@ -393,4 +403,30 @@ export interface SaveDialogOptions {
   title?: string;
   defaultPath?: string;
   filters?: Array<{ name: string; extensions: string[] }>;
+}
+
+// Client sync types (AI Hub feature parity)
+export type ClientAppIdType = 'claude' | 'cursor' | 'windsurf' | 'vscode' | 'cline';
+
+export interface ClientAppInfo {
+  id: ClientAppIdType;
+  name: string;
+  installed: boolean;
+  configPath: string;
+  serverCount: number;
+}
+
+export interface ClientMCPServerConfigInfo {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  type?: 'stdio' | 'http' | 'sse' | 'streamable-http';
+  url?: string;
+}
+
+export interface SyncResultInfo {
+  clientId: ClientAppIdType;
+  imported: number;
+  exported: number;
+  errors: string[];
 }

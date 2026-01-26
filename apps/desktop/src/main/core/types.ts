@@ -66,6 +66,9 @@ export const TYPES = {
   // System Integration
   TrayService: Symbol.for('TrayService'),
   AutoUpdater: Symbol.for('AutoUpdater'),
+
+  // Client Sync (AI Hub Feature Parity)
+  ClientSyncService: Symbol.for('ClientSyncService'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;
