@@ -4,7 +4,7 @@ import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { initializeContainer, disposeContainer, getContainer } from './core/container';
 import { TYPES } from './core/types';
-import type { IHttpServer, ILogger } from './core/interfaces';
+import type { IHttpServer, ILogger, IDeepLinkHandler } from './core/interfaces';
 import { registerAllIpcHandlers } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -95,6 +95,27 @@ async function initialize(): Promise<void> {
   // Register all IPC handlers using the modular system
   registerAllIpcHandlers(container);
   logger.debug('IPC handlers registered');
+
+  // Initialize deep link handler for secure URL handling
+  const deepLinkHandler = container.get<IDeepLinkHandler>(TYPES.DeepLinkHandler);
+  deepLinkHandler.register();
+  logger.debug('Deep link handler registered');
+
+  // Set up deep link action handlers
+  deepLinkHandler.onAction('connect-server', async (link) => {
+    logger.info('Deep link: connect-server', { params: link.params });
+    // TODO: Implement server connection from deep link
+  });
+
+  deepLinkHandler.onAction('approve-request', async (link) => {
+    logger.info('Deep link: approve-request', { params: link.params });
+    // TODO: Implement approval handling from deep link
+  });
+
+  deepLinkHandler.onAction('open-workspace', async (link) => {
+    logger.info('Deep link: open-workspace', { params: link.params });
+    // TODO: Implement workspace opening from deep link
+  });
 
   logger.info('Application initialized');
 }

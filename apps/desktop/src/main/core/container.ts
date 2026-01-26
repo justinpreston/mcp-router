@@ -23,6 +23,13 @@ import type {
   IToolCatalog,
   IHttpServer,
   IMcpAggregator,
+  IJsonRpcHandler,
+  IStdioTransport,
+  IHttpTransport,
+  ISseTransport,
+  IKeychainService,
+  IProcessHealthMonitor,
+  IDeepLinkHandler,
 } from './interfaces';
 
 // Import implementations (these will be created in subsequent files)
@@ -44,6 +51,13 @@ import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
 import { SecureHttpServer } from '@main/services/http/secure-http-server.service';
 import { McpAggregator } from '@main/services/mcp/mcp-aggregator.service';
+import { JsonRpcHandler } from '@main/services/mcp/json-rpc-handler';
+import { StdioTransport } from '@main/services/mcp/stdio-transport';
+import { HttpTransport } from '@main/services/mcp/http-transport';
+import { SseTransport } from '@main/services/mcp/sse-transport';
+import { ProcessHealthMonitor } from '@main/services/mcp/process-health-monitor';
+import { KeychainService } from '@main/services/auth/keychain.service';
+import { DeepLinkHandler } from '@main/security/deep-link-handler';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -99,6 +113,21 @@ export function createContainer(): Container {
   // ============================================================================
   container.bind<IHttpServer>(TYPES.HttpServer).to(SecureHttpServer);
   container.bind<IMcpAggregator>(TYPES.McpAggregator).to(McpAggregator);
+
+  // ============================================================================
+  // MCP Protocol Layer (JSON-RPC, Transports, Client)
+  // ============================================================================
+  container.bind<IJsonRpcHandler>(TYPES.JsonRpcHandler).to(JsonRpcHandler);
+  container.bind<IStdioTransport>(TYPES.StdioTransport).to(StdioTransport);
+  container.bind<IHttpTransport>(TYPES.HttpTransport).to(HttpTransport);
+  container.bind<ISseTransport>(TYPES.SseTransport).to(SseTransport);
+  container.bind<IProcessHealthMonitor>(TYPES.ProcessHealthMonitor).to(ProcessHealthMonitor);
+  container.bind<IKeychainService>(TYPES.KeychainService).to(KeychainService);
+
+  // ============================================================================
+  // Security
+  // ============================================================================
+  container.bind<IDeepLinkHandler>(TYPES.DeepLinkHandler).to(DeepLinkHandler);
 
   return container;
 }

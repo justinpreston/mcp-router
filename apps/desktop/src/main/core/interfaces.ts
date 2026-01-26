@@ -497,3 +497,290 @@ export interface IMcpAggregator {
   listResources(tokenId: string, serverId: string): Promise<unknown[]>;
   readResource(tokenId: string, serverId: string, uri: string): Promise<unknown>;
 }
+
+// ============================================================================
+// MCP Client & Transport Layer
+// ============================================================================
+
+/**
+ * JSON-RPC 2.0 message types for MCP protocol communication.
+ */
+export interface JsonRpcRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: string;
+  params?: unknown;
+}
+
+export interface JsonRpcResponse {
+  jsonrpc: '2.0';
+  id: string | number;
+  result?: unknown;
+  error?: JsonRpcError;
+}
+
+export interface JsonRpcNotification {
+  jsonrpc: '2.0';
+  method: string;
+  params?: unknown;
+}
+
+export interface JsonRpcError {
+  code: number;
+  message: string;
+  data?: unknown;
+}
+
+export type JsonRpcMessage = JsonRpcRequest | JsonRpcResponse | JsonRpcNotification;
+
+/**
+ * JSON-RPC handler for request/response correlation and timeout management.
+ */
+export interface IJsonRpcHandler {
+  setSendFunction(sendFn: (message: JsonRpcMessage) => void): void;
+  sendRequest<T = unknown>(method: string, params?: unknown, timeoutMs?: number): Promise<T>;
+  sendNotification(method: string, params?: unknown): void;
+  handleMessage(message: JsonRpcMessage): void;
+  onRequest(handler: (method: string, params: unknown) => Promise<unknown>): void;
+  onNotification(handler: (method: string, params: unknown) => void): void;
+  close(): void;
+}
+
+/**
+ * Stdio transport for child process-based MCP servers.
+ */
+export interface StdioTransportOptions {
+  cwd?: string;
+  env?: Record<string, string>;
+  timeout?: number;
+}
+
+export interface IStdioTransport {
+  spawn(command: string, args: string[], options?: StdioTransportOptions): Promise<void>;
+  send(message: JsonRpcMessage): void;
+  onMessage(handler: (message: JsonRpcMessage) => void): void;
+  onError(handler: (error: Error) => void): void;
+  onClose(handler: (code: number | null) => void): void;
+  kill(): void;
+  isRunning(): boolean;
+  getPid(): number | undefined;
+}
+
+/**
+ * HTTP/SSE transport for HTTP-based MCP servers.
+ */
+export interface HttpTransportOptions {
+  headers?: Record<string, string>;
+  timeout?: number;
+}
+
+export interface IHttpTransport {
+  connect(url: string, options?: HttpTransportOptions): Promise<void>;
+  send(message: JsonRpcRequest): Promise<JsonRpcResponse>;
+  disconnect(): void;
+  isConnected(): boolean;
+}
+
+export interface ISseTransport {
+  connect(url: string, options?: HttpTransportOptions): Promise<void>;
+  onMessage(handler: (message: JsonRpcMessage) => void): void;
+  onError(handler: (error: Error) => void): void;
+  disconnect(): void;
+  isConnected(): boolean;
+}
+
+/**
+ * MCP Resource types from the protocol specification.
+ */
+export interface McpResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceContent {
+  uri: string;
+  mimeType?: string;
+  text?: string;
+  blob?: string; // Base64 encoded
+}
+
+/**
+ * MCP Prompt types from the protocol specification.
+ */
+export interface McpPrompt {
+  name: string;
+  description?: string;
+  arguments?: McpPromptArgument[];
+}
+
+export interface McpPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptMessage {
+  role: 'user' | 'assistant';
+  content: McpPromptContent;
+}
+
+export interface McpPromptContent {
+  type: 'text' | 'image' | 'resource';
+  text?: string;
+  data?: string;
+  mimeType?: string;
+  resource?: McpResource;
+}
+
+/**
+ * MCP Client interface for communicating with MCP servers.
+ */
+export interface IMcpClient {
+  /** Connect to the MCP server */
+  connect(): Promise<void>;
+  /** Disconnect from the MCP server */
+  disconnect(): Promise<void>;
+  /** Check if connected */
+  isConnected(): boolean;
+
+  /** List available tools */
+  listTools(): Promise<MCPTool[]>;
+  /** Call a tool with arguments */
+  callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+
+  /** List available resources */
+  listResources(): Promise<McpResource[]>;
+  /** Read a resource by URI */
+  readResource(uri: string): Promise<McpResourceContent>;
+
+  /** List available prompts */
+  listPrompts(): Promise<McpPrompt[]>;
+  /** Get a prompt with arguments */
+  getPrompt(name: string, args?: Record<string, string>): Promise<McpPromptMessage[]>;
+}
+
+/**
+ * Factory interface for creating MCP clients per server.
+ */
+export interface IMcpClientFactory {
+  createClient(server: MCPServer): IMcpClient;
+  getClient(serverId: string): IMcpClient | undefined;
+  removeClient(serverId: string): void;
+  getAllClients(): Map<string, IMcpClient>;
+}
+
+// ============================================================================
+// Secure Credential Storage
+// ============================================================================
+
+/**
+ * Keychain service for secure credential storage using OS-level security.
+ * Uses keytar to store sensitive data in:
+ * - macOS: Keychain
+ * - Windows: Credential Manager
+ * - Linux: Secret Service API (libsecret)
+ */
+export interface IKeychainService {
+  /** Store a secret in the keychain */
+  setSecret(key: string, value: string): Promise<void>;
+  /** Retrieve a secret from the keychain */
+  getSecret(key: string): Promise<string | null>;
+  /** Delete a secret from the keychain */
+  deleteSecret(key: string): Promise<boolean>;
+  /** Check if keychain is available on this platform */
+  isAvailable(): Promise<boolean>;
+}
+
+/**
+ * Restart policy configuration for process health monitoring.
+ */
+export interface RestartPolicy {
+  /** Maximum number of restarts within the restart window */
+  maxRestarts: number;
+  /** Time window in milliseconds for counting restarts */
+  restartWindow: number;
+  /** Multiplier for exponential backoff */
+  backoffMultiplier: number;
+  /** Maximum backoff delay in milliseconds */
+  maxBackoff: number;
+  /** Initial backoff delay in milliseconds */
+  initialBackoff: number;
+}
+
+/**
+ * Process health status.
+ */
+export type ProcessHealth =
+  | 'healthy'
+  | 'unhealthy'
+  | 'crashed'
+  | 'restarting'
+  | 'failed'
+  | 'unknown';
+
+/**
+ * Process health monitor for MCP server processes.
+ * Implements automatic restart with exponential backoff and circuit breaker.
+ */
+export interface IProcessHealthMonitor {
+  /** Register a process for health monitoring with restart callback */
+  register(serverId: string, pid: number, onRestart: () => Promise<number>): void;
+  /** Unregister a process from health monitoring */
+  unregister(serverId: string): void;
+  /** Report a process crash or unexpected exit */
+  reportCrash(serverId: string, exitCode: number | null): Promise<void>;
+  /** Report a successful heartbeat from a process */
+  reportHeartbeat(serverId: string): void;
+  /** Get the health status of a process */
+  getHealth(serverId: string): ProcessHealth;
+  /** Get health statistics for all monitored processes */
+  getStats(): Map<string, { health: ProcessHealth; restartCount: number; pid: number }>;
+  /** Set the restart policy for all processes */
+  setRestartPolicy(policy: Partial<RestartPolicy>): void;
+  /** Reset the restart counter for a process */
+  resetRestartCount(serverId: string): void;
+  /** Subscribe to health change events */
+  onHealthChange(callback: (serverId: string, health: ProcessHealth) => void): () => void;
+  /** Clean up resources */
+  dispose(): void;
+}
+
+// ============================================================================
+// Security Interfaces
+// ============================================================================
+
+/** Deep link action types */
+export type DeepLinkAction =
+  | 'connect-server'
+  | 'approve-request'
+  | 'open-workspace'
+  | 'import-config'
+  | 'oauth-callback';
+
+/** Parsed deep link data */
+export interface ParsedDeepLink {
+  action: DeepLinkAction;
+  params: Record<string, string>;
+  raw: string;
+}
+
+/** Deep link handler callback */
+export type DeepLinkCallback = (link: ParsedDeepLink) => void | Promise<void>;
+
+/**
+ * Deep link handler for secure URL validation and processing.
+ */
+export interface IDeepLinkHandler {
+  /** Register the app as default protocol handler */
+  register(): void;
+  /** Unregister the protocol handler */
+  unregister(): void;
+  /** Handle an incoming deep link URL */
+  handleUrl(url: string): Promise<void>;
+  /** Register a callback for a specific action */
+  onAction(action: DeepLinkAction, callback: DeepLinkCallback): void;
+  /** Remove a callback for a specific action */
+  offAction(action: DeepLinkAction): void;
+}

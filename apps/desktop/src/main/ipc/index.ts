@@ -16,6 +16,7 @@ export { registerApprovalHandlers, setupApprovalNotifications } from './approval
 export { registerWorkspaceHandlers } from './workspaces.handler';
 export { registerMemoryHandlers } from './memory.handler';
 export { registerCatalogHandlers } from './catalog.handler';
+export * from './validation-schemas';
 
 /**
  * Register all IPC handlers for main-renderer communication.

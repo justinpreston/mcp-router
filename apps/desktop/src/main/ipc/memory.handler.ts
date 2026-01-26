@@ -4,11 +4,18 @@ import type {
   IMemoryService,
   ILogger,
   Memory,
-  MemoryInput,
-  MemorySearchOptions,
   MemorySearchResult,
+  MemorySearchOptions,
 } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
+import {
+  MemoryIdSchema,
+  MemoryStoreSchema,
+  MemoryUpdateInputSchema,
+  NonEmptyString,
+  validateInput,
+} from './validation-schemas';
+import { z } from 'zod';
 
 /**
  * API-safe memory info type.
@@ -60,6 +67,23 @@ function toSearchResultInfo(result: MemorySearchResult): MemorySearchResultInfo 
   };
 }
 
+// Schema for tags array
+const TagsArraySchema = z.array(z.string().max(50)).min(1).max(50);
+
+// Schema for search options matching MemorySearchOptions interface
+const SearchOptionsSchema = z.object({
+  tags: z.array(z.string().max(50)).max(50).optional(),
+  minScore: z.number().min(0).max(1).optional(),
+  topK: z.number().int().min(1).max(100).optional(),
+  includeEmbeddings: z.boolean().optional(),
+}).optional();
+
+// Schema for list options
+const ListOptionsSchema = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+}).optional();
+
 /**
  * Register IPC handlers for memory management.
  */
@@ -68,50 +92,40 @@ export function registerMemoryHandlers(container: Container): void {
   const logger = container.get<ILogger>(TYPES.Logger);
 
   // Store new memory
-  ipcMain.handle('memory:store', async (_event, input: MemoryInput) => {
-    logger.debug('IPC: memory:store', { tags: input?.tags });
+  ipcMain.handle('memory:store', async (_event, input: unknown) => {
+    logger.debug('IPC: memory:store');
 
-    if (!input || typeof input !== 'object') {
-      throw new Error('Invalid memory input');
-    }
-
-    if (!input.content || typeof input.content !== 'string') {
-      throw new Error('Memory content is required');
-    }
+    const validInput = validateInput(MemoryStoreSchema, input);
 
     const memory = await memoryService.store({
-      content: input.content,
-      tags: Array.isArray(input.tags) ? input.tags : undefined,
-      source: typeof input.source === 'string' ? input.source : undefined,
-      metadata: input.metadata,
+      content: validInput.content,
+      tags: validInput.tags,
+      source: validInput.source,
+      metadata: validInput.metadata,
     });
 
     return toMemoryInfo(memory);
   });
 
   // Retrieve memory by ID
-  ipcMain.handle('memory:get', async (_event, id: string) => {
+  ipcMain.handle('memory:get', async (_event, id: unknown) => {
     logger.debug('IPC: memory:get', { id });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid memory ID');
-    }
-
-    const memory = await memoryService.retrieve(id);
+    const validId = validateInput(MemoryIdSchema, id);
+    const memory = await memoryService.retrieve(validId);
     return memory ? toMemoryInfo(memory) : null;
   });
 
   // Search memories by query
   ipcMain.handle(
     'memory:search',
-    async (_event, query: string, options?: MemorySearchOptions) => {
-      logger.debug('IPC: memory:search', { query, options });
+    async (_event, query: unknown, options?: unknown) => {
+      logger.debug('IPC: memory:search', { query });
 
-      if (!query || typeof query !== 'string') {
-        throw new Error('Search query is required');
-      }
+      const validQuery = validateInput(NonEmptyString.max(500), query);
+      const validOptions = options ? validateInput(SearchOptionsSchema, options) : undefined;
 
-      const results = await memoryService.search(query, options);
+      const results = await memoryService.search(validQuery, validOptions as MemorySearchOptions);
       return results.map(toSearchResultInfo);
     }
   );
@@ -119,14 +133,13 @@ export function registerMemoryHandlers(container: Container): void {
   // Search memories by tags
   ipcMain.handle(
     'memory:searchByTags',
-    async (_event, tags: string[], options?: MemorySearchOptions) => {
-      logger.debug('IPC: memory:searchByTags', { tags, options });
+    async (_event, tags: unknown, options?: unknown) => {
+      logger.debug('IPC: memory:searchByTags', { tags });
 
-      if (!Array.isArray(tags) || tags.length === 0) {
-        throw new Error('At least one tag is required');
-      }
+      const validTags = validateInput(TagsArraySchema, tags);
+      const validOptions = options ? validateInput(SearchOptionsSchema, options) : undefined;
 
-      const memories = await memoryService.searchByTags(tags, options);
+      const memories = await memoryService.searchByTags(validTags, validOptions as MemorySearchOptions);
       return memories.map(toMemoryInfo);
     }
   );
@@ -134,10 +147,11 @@ export function registerMemoryHandlers(container: Container): void {
   // List all memories with pagination
   ipcMain.handle(
     'memory:list',
-    async (_event, options?: { limit?: number; offset?: number }) => {
+    async (_event, options?: unknown) => {
       logger.debug('IPC: memory:list', { options });
 
-      const memories = await memoryService.getAll(options);
+      const validOptions = options ? validateInput(ListOptionsSchema, options) : undefined;
+      const memories = await memoryService.getAll(validOptions);
       return memories.map(toMemoryInfo);
     }
   );
@@ -145,30 +159,22 @@ export function registerMemoryHandlers(container: Container): void {
   // Update memory
   ipcMain.handle(
     'memory:update',
-    async (_event, id: string, updates: Partial<MemoryInput>) => {
+    async (_event, id: unknown, updates: unknown) => {
       logger.debug('IPC: memory:update', { id });
 
-      if (!id || typeof id !== 'string') {
-        throw new Error('Invalid memory ID');
-      }
+      const validId = validateInput(MemoryIdSchema, id);
+      const validUpdates = validateInput(MemoryUpdateInputSchema, updates);
 
-      if (!updates || typeof updates !== 'object') {
-        throw new Error('Invalid update data');
-      }
-
-      const memory = await memoryService.update(id, updates);
+      const memory = await memoryService.update(validId, validUpdates);
       return toMemoryInfo(memory);
     }
   );
 
   // Delete memory
-  ipcMain.handle('memory:delete', async (_event, id: string) => {
+  ipcMain.handle('memory:delete', async (_event, id: unknown) => {
     logger.debug('IPC: memory:delete', { id });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid memory ID');
-    }
-
-    await memoryService.delete(id);
+    const validId = validateInput(MemoryIdSchema, id);
+    await memoryService.delete(validId);
   });
 }

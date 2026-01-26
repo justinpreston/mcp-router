@@ -31,10 +31,18 @@ export const TYPES = {
   HttpServer: Symbol.for('HttpServer'),
   TokenValidator: Symbol.for('TokenValidator'),
 
-  // MCP Transport
+  // MCP Transport & Client
   McpAggregator: Symbol.for('McpAggregator'),
+  McpClientFactory: Symbol.for('McpClientFactory'),
+  JsonRpcHandler: Symbol.for('JsonRpcHandler'),
   StdioTransport: Symbol.for('StdioTransport'),
   SseTransport: Symbol.for('SseTransport'),
+  HttpTransport: Symbol.for('HttpTransport'),
+  ProcessHealthMonitor: Symbol.for('ProcessHealthMonitor'),
+
+  // Security
+  KeychainService: Symbol.for('KeychainService'),
+  DeepLinkHandler: Symbol.for('DeepLinkHandler'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;

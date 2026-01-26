@@ -3,6 +3,11 @@ import type { Container } from 'inversify';
 import type { IApprovalQueue, ILogger, ApprovalRequest } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
 import type { ApprovalInfo } from '@preload/api';
+import {
+  ApprovalIdSchema,
+  ApprovalDecisionSchema,
+  validateInput,
+} from './validation-schemas';
 
 /**
  * Transform internal ApprovalRequest to API-safe ApprovalInfo.
@@ -50,42 +55,38 @@ export function registerApprovalHandlers(container: Container): void {
   });
 
   // Approve request
-  ipcMain.handle('approvals:approve', async (_event, id: string, note?: string) => {
-    logger.debug('IPC: approvals:approve', { id });
+  ipcMain.handle('approvals:approve', async (_event, id: unknown, note?: unknown) => {
+    const validId = validateInput(ApprovalIdSchema, id);
+    const validNote = note ? validateInput(ApprovalDecisionSchema.shape.reason, note) : undefined;
+    logger.debug('IPC: approvals:approve', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid approval request ID');
-    }
-
-    await approvalQueue.respond(id, {
+    await approvalQueue.respond(validId, {
       approved: true,
-      note: typeof note === 'string' ? note : undefined,
+      note: validNote,
       respondedBy: 'user',
     });
 
     // Get updated request and notify
-    const request = await approvalQueue.getRequest(id);
+    const request = await approvalQueue.getRequest(validId);
     if (request) {
       notifyApprovalEvent('approval:resolved', toApprovalInfo(request));
     }
   });
 
   // Reject request
-  ipcMain.handle('approvals:reject', async (_event, id: string, reason?: string) => {
-    logger.debug('IPC: approvals:reject', { id });
+  ipcMain.handle('approvals:reject', async (_event, id: unknown, reason?: unknown) => {
+    const validId = validateInput(ApprovalIdSchema, id);
+    const validReason = reason ? validateInput(ApprovalDecisionSchema.shape.reason, reason) : undefined;
+    logger.debug('IPC: approvals:reject', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid approval request ID');
-    }
-
-    await approvalQueue.respond(id, {
+    await approvalQueue.respond(validId, {
       approved: false,
-      note: typeof reason === 'string' ? reason : undefined,
+      note: validReason,
       respondedBy: 'user',
     });
 
     // Get updated request and notify
-    const request = await approvalQueue.getRequest(id);
+    const request = await approvalQueue.getRequest(validId);
     if (request) {
       notifyApprovalEvent('approval:resolved', toApprovalInfo(request));
     }

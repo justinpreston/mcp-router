@@ -2,7 +2,14 @@ import { ipcMain } from 'electron';
 import type { Container } from 'inversify';
 import type { ITokenService, ILogger, Token } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
-import type { TokenInfo, TokenCreateOptions } from '@preload/api';
+import type { TokenInfo } from '@preload/api';
+import {
+  TokenId,
+  TokenCreateSchema,
+  TokenUpdateAccessSchema,
+  NonEmptyString,
+  validateInput,
+} from './validation-schemas';
 
 /**
  * Transform internal Token to API-safe TokenInfo.
@@ -28,66 +35,48 @@ export function registerTokenHandlers(container: Container): void {
   const logger = container.get<ILogger>(TYPES.Logger);
 
   // List tokens
-  ipcMain.handle('tokens:list', async (_event, clientId?: string) => {
-    logger.debug('IPC: tokens:list', { clientId });
+  ipcMain.handle('tokens:list', async (_event, clientId?: unknown) => {
+    const validClientId = clientId ? validateInput(NonEmptyString, clientId) : undefined;
+    logger.debug('IPC: tokens:list', { clientId: validClientId });
 
-    const tokens = await tokenService.listTokens(clientId);
+    const tokens = await tokenService.listTokens(validClientId);
     return tokens.map(toTokenInfo);
   });
 
   // Create token
-  ipcMain.handle('tokens:create', async (_event, options: TokenCreateOptions) => {
-    logger.debug('IPC: tokens:create', { clientId: options?.clientId, name: options?.name });
-
-    if (!options || typeof options !== 'object') {
-      throw new Error('Invalid token options');
-    }
-
-    if (!options.clientId || typeof options.clientId !== 'string') {
-      throw new Error('Client ID is required');
-    }
-
-    if (!options.name || typeof options.name !== 'string') {
-      throw new Error('Token name is required');
-    }
+  ipcMain.handle('tokens:create', async (_event, options: unknown) => {
+    const validOptions = validateInput(TokenCreateSchema, options);
+    logger.debug('IPC: tokens:create', { clientId: validOptions.clientId, name: validOptions.name });
 
     const token = await tokenService.generateToken({
-      clientId: options.clientId,
-      name: options.name,
-      ttl: options.ttl,
-      scopes: options.scopes,
-      serverAccess: options.serverAccess,
+      clientId: validOptions.clientId,
+      name: validOptions.name,
+      ttl: validOptions.expiresInDays ? validOptions.expiresInDays * 24 * 60 * 60 : undefined,
+      scopes: validOptions.scopes,
+      serverAccess: validOptions.serverAccess?.reduce((acc, id) => ({ ...acc, [id]: true }), {}),
     });
 
     return toTokenInfo(token);
   });
 
   // Revoke token
-  ipcMain.handle('tokens:revoke', async (_event, tokenId: string) => {
-    logger.debug('IPC: tokens:revoke', { tokenId: tokenId?.substring(0, 8) + '...' });
+  ipcMain.handle('tokens:revoke', async (_event, tokenId: unknown) => {
+    const validId = validateInput(TokenId, tokenId);
+    logger.debug('IPC: tokens:revoke', { tokenId: validId.substring(0, 8) + '...' });
 
-    if (!tokenId || typeof tokenId !== 'string') {
-      throw new Error('Invalid token ID');
-    }
-
-    await tokenService.revokeToken(tokenId);
+    await tokenService.revokeToken(validId);
   });
 
   // Update server access
   ipcMain.handle(
     'tokens:updateAccess',
-    async (_event, tokenId: string, serverAccess: Record<string, boolean>) => {
-      logger.debug('IPC: tokens:updateAccess', { tokenId: tokenId?.substring(0, 8) + '...' });
+    async (_event, tokenId: unknown, serverAccess: unknown) => {
+      const validId = validateInput(TokenId, tokenId);
+      const validAccess = validateInput(TokenUpdateAccessSchema.shape.serverAccess, serverAccess);
+      logger.debug('IPC: tokens:updateAccess', { tokenId: validId.substring(0, 8) + '...' });
 
-      if (!tokenId || typeof tokenId !== 'string') {
-        throw new Error('Invalid token ID');
-      }
-
-      if (!serverAccess || typeof serverAccess !== 'object') {
-        throw new Error('Invalid server access configuration');
-      }
-
-      const token = await tokenService.updateServerAccess(tokenId, serverAccess);
+      const accessMap = validAccess.reduce((acc, id) => ({ ...acc, [id]: true }), {} as Record<string, boolean>);
+      const token = await tokenService.updateServerAccess(validId, accessMap);
       return toTokenInfo(token);
     }
   );

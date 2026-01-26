@@ -2,6 +2,13 @@ import { ipcMain } from 'electron';
 import type { Container } from 'inversify';
 import type { IWorkspaceService, ILogger, Workspace } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
+import {
+  WorkspaceId,
+  WorkspaceCreateSchema,
+  WorkspaceUpdateSchema,
+  ServerId,
+  validateInput,
+} from './validation-schemas';
 
 /**
  * API-safe workspace info type.
@@ -53,100 +60,68 @@ export function registerWorkspaceHandlers(container: Container): void {
   });
 
   // Get single workspace
-  ipcMain.handle('workspaces:get', async (_event, id: string) => {
-    logger.debug('IPC: workspaces:get', { id });
+  ipcMain.handle('workspaces:get', async (_event, id: unknown) => {
+    const validId = validateInput(WorkspaceId, id);
+    logger.debug('IPC: workspaces:get', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid workspace ID');
-    }
-
-    const workspace = await workspaceService.getWorkspace(id);
+    const workspace = await workspaceService.getWorkspace(validId);
     return workspace ? toWorkspaceInfo(workspace) : null;
   });
 
   // Create workspace
-  ipcMain.handle('workspaces:create', async (_event, config: WorkspaceAddConfig) => {
-    logger.debug('IPC: workspaces:create', { name: config?.name });
+  ipcMain.handle('workspaces:create', async (_event, config: unknown) => {
+    const validConfig = validateInput(WorkspaceCreateSchema, config);
+    logger.debug('IPC: workspaces:create', { name: validConfig.name });
 
-    if (!config || typeof config !== 'object') {
-      throw new Error('Invalid workspace configuration');
-    }
-
-    if (!config.name || typeof config.name !== 'string') {
-      throw new Error('Workspace name is required');
-    }
-
-    if (!config.path || typeof config.path !== 'string') {
-      throw new Error('Workspace path is required');
-    }
-
-    const workspace = await workspaceService.createWorkspace(config.name, config.path);
+    const workspace = await workspaceService.createWorkspace(
+      validConfig.name,
+      validConfig.rootPath ?? ''
+    );
     return toWorkspaceInfo(workspace);
   });
 
   // Update workspace
   ipcMain.handle(
     'workspaces:update',
-    async (_event, id: string, updates: Partial<WorkspaceAddConfig>) => {
-      logger.debug('IPC: workspaces:update', { id });
+    async (_event, id: unknown, updates: unknown) => {
+      const validId = validateInput(WorkspaceId, id);
+      const validUpdates = validateInput(WorkspaceUpdateSchema.omit({ id: true }), updates);
+      logger.debug('IPC: workspaces:update', { id: validId });
 
-      if (!id || typeof id !== 'string') {
-        throw new Error('Invalid workspace ID');
-      }
-
-      if (!updates || typeof updates !== 'object') {
-        throw new Error('Invalid update data');
-      }
-
-      const workspace = await workspaceService.updateWorkspace(id, updates);
+      const workspace = await workspaceService.updateWorkspace(validId, validUpdates);
       return toWorkspaceInfo(workspace);
     }
   );
 
   // Delete workspace
-  ipcMain.handle('workspaces:delete', async (_event, id: string) => {
-    logger.debug('IPC: workspaces:delete', { id });
+  ipcMain.handle('workspaces:delete', async (_event, id: unknown) => {
+    const validId = validateInput(WorkspaceId, id);
+    logger.debug('IPC: workspaces:delete', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid workspace ID');
-    }
-
-    await workspaceService.deleteWorkspace(id);
+    await workspaceService.deleteWorkspace(validId);
   });
 
   // Add server to workspace
   ipcMain.handle(
     'workspaces:addServer',
-    async (_event, workspaceId: string, serverId: string) => {
-      logger.debug('IPC: workspaces:addServer', { workspaceId, serverId });
+    async (_event, workspaceId: unknown, serverId: unknown) => {
+      const validWorkspaceId = validateInput(WorkspaceId, workspaceId);
+      const validServerId = validateInput(ServerId, serverId);
+      logger.debug('IPC: workspaces:addServer', { workspaceId: validWorkspaceId, serverId: validServerId });
 
-      if (!workspaceId || typeof workspaceId !== 'string') {
-        throw new Error('Invalid workspace ID');
-      }
-
-      if (!serverId || typeof serverId !== 'string') {
-        throw new Error('Invalid server ID');
-      }
-
-      await workspaceService.addServerToWorkspace(workspaceId, serverId);
+      await workspaceService.addServerToWorkspace(validWorkspaceId, validServerId);
     }
   );
 
   // Remove server from workspace
   ipcMain.handle(
     'workspaces:removeServer',
-    async (_event, workspaceId: string, serverId: string) => {
-      logger.debug('IPC: workspaces:removeServer', { workspaceId, serverId });
+    async (_event, workspaceId: unknown, serverId: unknown) => {
+      const validWorkspaceId = validateInput(WorkspaceId, workspaceId);
+      const validServerId = validateInput(ServerId, serverId);
+      logger.debug('IPC: workspaces:removeServer', { workspaceId: validWorkspaceId, serverId: validServerId });
 
-      if (!workspaceId || typeof workspaceId !== 'string') {
-        throw new Error('Invalid workspace ID');
-      }
-
-      if (!serverId || typeof serverId !== 'string') {
-        throw new Error('Invalid server ID');
-      }
-
-      await workspaceService.removeServerFromWorkspace(workspaceId, serverId);
+      await workspaceService.removeServerFromWorkspace(validWorkspaceId, validServerId);
     }
   );
 }

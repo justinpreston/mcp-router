@@ -2,7 +2,13 @@ import { ipcMain, BrowserWindow } from 'electron';
 import type { Container } from 'inversify';
 import type { IServerManager, ILogger, MCPServer } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
-import type { MCPServerInfo, ServerAddConfig } from '@preload/api';
+import type { MCPServerInfo } from '@preload/api';
+import {
+  ServerId,
+  ServerCreateSchema,
+  ServerUpdateSchema,
+  validateInput,
+} from './validation-schemas';
 
 /**
  * Transform internal MCPServer to API-safe MCPServerInfo.
@@ -39,41 +45,27 @@ export function registerServerHandlers(container: Container): void {
   });
 
   // Get single server
-  ipcMain.handle('servers:get', async (_event, id: string) => {
-    logger.debug('IPC: servers:get', { id });
+  ipcMain.handle('servers:get', async (_event, id: unknown) => {
+    const validId = validateInput(ServerId, id);
+    logger.debug('IPC: servers:get', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid server ID');
-    }
-
-    const server = serverManager.getServer(id);
+    const server = serverManager.getServer(validId);
     return server ? toServerInfo(server) : null;
   });
 
   // Add new server
-  ipcMain.handle('servers:add', async (_event, config: ServerAddConfig) => {
-    logger.debug('IPC: servers:add', { name: config?.name });
-
-    if (!config || typeof config !== 'object') {
-      throw new Error('Invalid server configuration');
-    }
-
-    if (!config.name || typeof config.name !== 'string') {
-      throw new Error('Server name is required');
-    }
-
-    if (!config.command || typeof config.command !== 'string') {
-      throw new Error('Server command is required');
-    }
+  ipcMain.handle('servers:add', async (_event, config: unknown) => {
+    const validConfig = validateInput(ServerCreateSchema, config);
+    logger.debug('IPC: servers:add', { name: validConfig.name });
 
     const server = await serverManager.addServer({
-      name: config.name,
-      command: config.command,
-      args: config.args ?? [],
-      env: config.env,
-      transport: config.transport ?? 'stdio',
-      projectId: config.projectId,
-      toolPermissions: config.toolPermissions ?? {},
+      name: validConfig.name,
+      command: validConfig.command,
+      args: validConfig.args ?? [],
+      env: validConfig.env,
+      transport: validConfig.type ?? 'stdio',
+      projectId: validConfig.workspaceId,
+      toolPermissions: {},
     });
 
     return toServerInfo(server);
@@ -82,45 +74,33 @@ export function registerServerHandlers(container: Container): void {
   // Update server
   ipcMain.handle(
     'servers:update',
-    async (_event, id: string, updates: Partial<ServerAddConfig>) => {
-      logger.debug('IPC: servers:update', { id });
+    async (_event, id: unknown, updates: unknown) => {
+      const validId = validateInput(ServerId, id);
+      const validUpdates = validateInput(ServerUpdateSchema.omit({ id: true }), updates);
+      logger.debug('IPC: servers:update', { id: validId });
 
-      if (!id || typeof id !== 'string') {
-        throw new Error('Invalid server ID');
-      }
-
-      if (!updates || typeof updates !== 'object') {
-        throw new Error('Invalid update data');
-      }
-
-      const server = await serverManager.updateServer(id, updates);
+      const server = await serverManager.updateServer(validId, validUpdates);
       return toServerInfo(server);
     }
   );
 
   // Remove server
-  ipcMain.handle('servers:remove', async (_event, id: string) => {
-    logger.debug('IPC: servers:remove', { id });
+  ipcMain.handle('servers:remove', async (_event, id: unknown) => {
+    const validId = validateInput(ServerId, id);
+    logger.debug('IPC: servers:remove', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid server ID');
-    }
-
-    await serverManager.removeServer(id);
+    await serverManager.removeServer(validId);
   });
 
   // Start server
-  ipcMain.handle('servers:start', async (event, id: string) => {
-    logger.debug('IPC: servers:start', { id });
+  ipcMain.handle('servers:start', async (event, id: unknown) => {
+    const validId = validateInput(ServerId, id);
+    logger.debug('IPC: servers:start', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid server ID');
-    }
-
-    await serverManager.startServer(id);
+    await serverManager.startServer(validId);
 
     // Emit status change event
-    const server = serverManager.getServer(id);
+    const server = serverManager.getServer(validId);
     if (server) {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window) {
@@ -130,17 +110,14 @@ export function registerServerHandlers(container: Container): void {
   });
 
   // Stop server
-  ipcMain.handle('servers:stop', async (event, id: string) => {
-    logger.debug('IPC: servers:stop', { id });
+  ipcMain.handle('servers:stop', async (event, id: unknown) => {
+    const validId = validateInput(ServerId, id);
+    logger.debug('IPC: servers:stop', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid server ID');
-    }
-
-    await serverManager.stopServer(id);
+    await serverManager.stopServer(validId);
 
     // Emit status change event
-    const server = serverManager.getServer(id);
+    const server = serverManager.getServer(validId);
     if (server) {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window) {
@@ -150,17 +127,14 @@ export function registerServerHandlers(container: Container): void {
   });
 
   // Restart server
-  ipcMain.handle('servers:restart', async (event, id: string) => {
-    logger.debug('IPC: servers:restart', { id });
+  ipcMain.handle('servers:restart', async (event, id: unknown) => {
+    const validId = validateInput(ServerId, id);
+    logger.debug('IPC: servers:restart', { id: validId });
 
-    if (!id || typeof id !== 'string') {
-      throw new Error('Invalid server ID');
-    }
-
-    await serverManager.restartServer(id);
+    await serverManager.restartServer(validId);
 
     // Emit status change event
-    const server = serverManager.getServer(id);
+    const server = serverManager.getServer(validId);
     if (server) {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window) {
