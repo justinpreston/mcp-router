@@ -1,6 +1,7 @@
 export {
   useServerStore,
   selectServers,
+  selectServerOrder,
   selectSelectedServer,
   selectRunningServers,
   selectServerById,
