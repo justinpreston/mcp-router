@@ -41,6 +41,7 @@ import type {
   IKeychainService,
   IProcessHealthMonitor,
   IDeepLinkHandler,
+  ITrayService,
 } from './interfaces';
 
 // Import implementations (these will be created in subsequent files)
@@ -73,6 +74,9 @@ import { SseTransport } from '@main/services/mcp/sse-transport';
 import { ProcessHealthMonitor } from '@main/services/mcp/process-health-monitor';
 import { KeychainService } from '@main/services/auth/keychain.service';
 import { DeepLinkHandler } from '@main/security/deep-link-handler';
+
+// System Integration
+import { TrayService } from '@main/services/tray/tray.service';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -160,6 +164,11 @@ export function createContainer(): Container {
   // ============================================================================
   container.bind<IDeepLinkHandler>(TYPES.DeepLinkHandler).to(DeepLinkHandler);
 
+  // ============================================================================
+  // System Integration
+  // ============================================================================
+  container.bind<ITrayService>(TYPES.TrayService).to(TrayService);
+
   return container;
 }
 
@@ -198,6 +207,14 @@ export function getContainer(): Container {
  */
 export async function disposeContainer(): Promise<void> {
   if (containerInstance) {
+    // Dispose tray service
+    try {
+      const trayService = containerInstance.get<ITrayService>(TYPES.TrayService);
+      await trayService.dispose();
+    } catch {
+      // Tray service may not have been initialized
+    }
+
     // Close database connection
     const database = containerInstance.get<IDatabase>(TYPES.Database);
     database.close();

@@ -1361,3 +1361,19 @@ export interface IDeepLinkHandler {
   /** Remove a callback for a specific action */
   offAction(action: DeepLinkAction): void;
 }
+
+/**
+ * System tray service for menu bar integration.
+ */
+export interface ITrayService {
+  /** Initialize the system tray icon and menu */
+  initialize(): Promise<void>;
+  /** Dispose of tray resources */
+  dispose(): Promise<void>;
+  /** Update the tray status indicator */
+  setStatus(status: 'idle' | 'active' | 'error' | 'warning'): void;
+  /** Show a notification from the tray */
+  showNotification(title: string, body: string): void;
+  /** Update the context menu with current state */
+  updateContextMenu(): Promise<void>;
+}

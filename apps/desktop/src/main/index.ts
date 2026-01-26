@@ -4,7 +4,7 @@ import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { initializeContainer, disposeContainer, getContainer } from './core/container';
 import { TYPES } from './core/types';
-import type { IHttpServer, ILogger, IDeepLinkHandler } from './core/interfaces';
+import type { IHttpServer, ILogger, IDeepLinkHandler, ITrayService } from './core/interfaces';
 import { registerAllIpcHandlers } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -116,6 +116,17 @@ async function initialize(): Promise<void> {
     logger.info('Deep link: open-workspace', { params: link.params });
     // TODO: Implement workspace opening from deep link
   });
+
+  // Initialize system tray
+  try {
+    const trayService = container.get<ITrayService>(TYPES.TrayService);
+    await trayService.initialize();
+    logger.info('System tray initialized');
+  } catch (error) {
+    logger.warn('Failed to initialize system tray', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 
   logger.info('Application initialized');
 }

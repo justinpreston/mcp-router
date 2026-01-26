@@ -54,6 +54,9 @@ export const TYPES = {
   // Security
   KeychainService: Symbol.for('KeychainService'),
   DeepLinkHandler: Symbol.for('DeepLinkHandler'),
+
+  // System Integration
+  TrayService: Symbol.for('TrayService'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;
