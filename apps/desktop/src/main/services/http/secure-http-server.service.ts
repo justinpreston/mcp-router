@@ -3,6 +3,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
+import { z } from 'zod';
 import { createServer, Server } from 'http';
 import { TYPES } from '@main/core/types';
 import type {
@@ -11,6 +12,9 @@ import type {
   ILogger,
   ITokenValidator,
   IProjectService,
+  IMcpAggregator,
+  IServerManager,
+  MCPTool,
 } from '@main/core/interfaces';
 
 /**
@@ -23,12 +27,16 @@ export class SecureHttpServer implements IHttpServer {
   private app: Application;
   private server: Server | null = null;
   private port: number | undefined;
+  /** Active SSE connections for streaming responses */
+  private sseConnections: Map<string, Response> = new Map();
 
   constructor(
     @inject(TYPES.Config) private config: IConfig,
     @inject(TYPES.Logger) private logger: ILogger,
     @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator,
-    @inject(TYPES.ProjectService) private projectService: IProjectService
+    @inject(TYPES.ProjectService) private projectService: IProjectService,
+    @inject(TYPES.McpAggregator) private mcpAggregator: IMcpAggregator,
+    @inject(TYPES.ServerManager) private serverManager: IServerManager
   ) {
     this.app = express();
     this.configureMiddleware();
@@ -299,7 +307,10 @@ export class SecureHttpServer implements IHttpServer {
     this.app.get('/mcp/resources/list', requireAuth, extractProjectContext, this.handleResourceList.bind(this) as unknown as express.RequestHandler);
     this.app.get('/mcp/resources/read', requireAuth, extractProjectContext, this.handleResourceRead.bind(this) as unknown as express.RequestHandler);
 
-    // SSE endpoint for streaming responses (with project context)
+    // JSON-RPC 2.0 endpoint for MCP protocol (Issue #16)
+    this.app.post('/mcp', requireAuth, extractProjectContext, this.handleJsonRpc.bind(this) as unknown as express.RequestHandler);
+
+    // SSE endpoint for streaming responses (with project context) (Issue #17)
     this.app.get('/mcp/sse', requireAuth, extractProjectContext, this.handleSseConnection.bind(this) as unknown as express.RequestHandler);
 
     // Project info endpoint - returns the resolved project for the request
@@ -365,76 +376,452 @@ export class SecureHttpServer implements IHttpServer {
   }
 
   // ============================================================================
-  // Route Handlers (placeholder implementations)
+  // Route Handlers
   // ============================================================================
 
+  /**
+   * JSON-RPC 2.0 schema for request validation.
+   */
+  private static readonly JsonRpcRequestSchema = z.object({
+    jsonrpc: z.literal('2.0'),
+    id: z.union([z.string(), z.number()]),
+    method: z.string(),
+    params: z.record(z.unknown()).optional(),
+  });
+
+  /**
+   * Tool call request schema.
+   */
+  private static readonly ToolCallSchema = z.object({
+    server_id: z.string(),
+    tool_name: z.string(),
+    arguments: z.record(z.unknown()).optional().default({}),
+  });
+
+  /**
+   * POST /mcp - Main JSON-RPC 2.0 endpoint for MCP protocol (Issue #16)
+   * Handles all MCP methods: tools/list, tools/call, resources/list, resources/read, prompts/list, prompts/get
+   */
+  private async handleJsonRpc(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const requestId = req.headers['x-request-id'] as string;
+
+    try {
+      // Validate JSON-RPC request format
+      const parseResult = SecureHttpServer.JsonRpcRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32600,
+            message: 'Invalid Request',
+            data: parseResult.error.flatten(),
+          },
+        });
+        return;
+      }
+
+      const { id, method, params } = parseResult.data;
+
+      this.logger.debug('JSON-RPC request received', {
+        requestId,
+        method,
+        projectId: req.projectId,
+      });
+
+      // Route to appropriate handler based on method
+      let result: unknown;
+      switch (method) {
+        case 'tools/list':
+          result = await this.jsonRpcToolsList(req);
+          break;
+
+        case 'tools/call':
+          result = await this.jsonRpcToolsCall(req, params);
+          break;
+
+        case 'resources/list':
+          result = await this.jsonRpcResourcesList(req, params);
+          break;
+
+        case 'resources/read':
+          result = await this.jsonRpcResourcesRead(req, params);
+          break;
+
+        case 'prompts/list':
+          result = await this.jsonRpcPromptsList(req);
+          break;
+
+        case 'prompts/get':
+          result = await this.jsonRpcPromptsGet(req, params);
+          break;
+
+        case 'ping':
+          result = { pong: true, timestamp: Date.now() };
+          break;
+
+        default:
+          res.status(200).json({
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32601,
+              message: 'Method not found',
+              data: { method },
+            },
+          });
+          return;
+      }
+
+      // Return successful result
+      res.status(200).json({
+        jsonrpc: '2.0',
+        id,
+        result,
+      });
+    } catch (error) {
+      this.logger.error('JSON-RPC handler error', {
+        requestId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      res.status(200).json({
+        jsonrpc: '2.0',
+        id: req.body?.id ?? null,
+        error: {
+          code: -32000,
+          message: error instanceof Error ? error.message : 'Server error',
+        },
+      });
+    }
+  }
+
+  /**
+   * JSON-RPC tools/list handler - lists all available tools across servers.
+   * Supports project-scoped filtering.
+   */
+  private async jsonRpcToolsList(req: AuthenticatedRequest): Promise<{ tools: MCPTool[] }> {
+    const tokenId = req.token.id;
+    let tools = await this.mcpAggregator.listTools(tokenId);
+
+    // Apply project-scoped filtering if project context is present
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      const projectServerIds = new Set(projectServers.map(s => s.id));
+      tools = tools.filter(tool => projectServerIds.has(tool.serverId));
+    }
+
+    return { tools };
+  }
+
+  /**
+   * JSON-RPC tools/call handler - executes a tool on a specific server.
+   */
+  private async jsonRpcToolsCall(
+    req: AuthenticatedRequest,
+    params?: Record<string, unknown>
+  ): Promise<unknown> {
+    // Validate params
+    const parseResult = SecureHttpServer.ToolCallSchema.safeParse(params);
+    if (!parseResult.success) {
+      throw new Error('Invalid params: ' + JSON.stringify(parseResult.error.flatten()));
+    }
+
+    const { server_id, tool_name, arguments: args } = parseResult.data;
+
+    // Verify server is within project scope if project context exists
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      const isInProject = projectServers.some(s => s.id === server_id);
+      if (!isInProject) {
+        throw new Error(`Server ${server_id} is not in project ${req.projectId}`);
+      }
+    }
+
+    const result = await this.mcpAggregator.callTool(req.token.id, server_id, tool_name, args);
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    return result.result;
+  }
+
+  /**
+   * JSON-RPC resources/list handler.
+   */
+  private async jsonRpcResourcesList(
+    req: AuthenticatedRequest,
+    params?: Record<string, unknown>
+  ): Promise<{ resources: unknown[] }> {
+    const serverId = params?.server_id as string | undefined;
+    if (!serverId) {
+      throw new Error('server_id is required');
+    }
+
+    // Verify server is within project scope if project context exists
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      const isInProject = projectServers.some(s => s.id === serverId);
+      if (!isInProject) {
+        throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
+      }
+    }
+
+    const resources = await this.mcpAggregator.listResources(req.token.id, serverId);
+    return { resources };
+  }
+
+  /**
+   * JSON-RPC resources/read handler.
+   */
+  private async jsonRpcResourcesRead(
+    req: AuthenticatedRequest,
+    params?: Record<string, unknown>
+  ): Promise<unknown> {
+    const serverId = params?.server_id as string | undefined;
+    const uri = params?.uri as string | undefined;
+
+    if (!serverId || !uri) {
+      throw new Error('server_id and uri are required');
+    }
+
+    // Verify server is within project scope if project context exists
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      const isInProject = projectServers.some(s => s.id === serverId);
+      if (!isInProject) {
+        throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
+      }
+    }
+
+    return await this.mcpAggregator.readResource(req.token.id, serverId, uri);
+  }
+
+  /**
+   * JSON-RPC prompts/list handler (stub).
+   */
+  private async jsonRpcPromptsList(_req: AuthenticatedRequest): Promise<{ prompts: unknown[] }> {
+    // TODO: Implement prompts listing when McpClient supports it
+    return { prompts: [] };
+  }
+
+  /**
+   * JSON-RPC prompts/get handler (stub).
+   */
+  private async jsonRpcPromptsGet(
+    _req: AuthenticatedRequest,
+    _params?: Record<string, unknown>
+  ): Promise<unknown> {
+    // TODO: Implement prompt retrieval when McpClient supports it
+    throw new Error('prompts/get not yet implemented');
+  }
+
   private async handleToolCall(req: AuthenticatedRequest, res: Response): Promise<void> {
-    // Will be implemented with McpAggregator integration
-    // Use req.projectId to filter tools to project-scoped servers
-    const projectContext = req.projectId ? { projectId: req.projectId } : {};
-    res.status(501).json({
-      error: 'Not implemented',
-      ...projectContext,
-    });
+    try {
+      const parseResult = SecureHttpServer.ToolCallSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          error: 'Invalid request',
+          details: parseResult.error.flatten(),
+        });
+        return;
+      }
+
+      const { server_id, tool_name, arguments: args } = parseResult.data;
+
+      // Verify server is within project scope if project context exists
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const isInProject = projectServers.some(s => s.id === server_id);
+        if (!isInProject) {
+          res.status(403).json({
+            error: `Server ${server_id} is not in project ${req.projectId}`,
+          });
+          return;
+        }
+      }
+
+      const result = await this.mcpAggregator.callTool(req.token.id, server_id, tool_name, args);
+      res.json(result);
+    } catch (error) {
+      this.logger.error('Tool call error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Tool call failed',
+      });
+    }
   }
 
   private async handleToolList(req: AuthenticatedRequest, res: Response): Promise<void> {
-    // Will be implemented with McpAggregator integration
-    // Use req.projectId to filter tools to project-scoped servers
-    const projectContext = req.projectId ? { projectId: req.projectId } : {};
-    res.status(501).json({
-      error: 'Not implemented',
-      ...projectContext,
-    });
+    try {
+      let tools = await this.mcpAggregator.listTools(req.token.id);
+
+      // Apply project-scoped filtering if project context is present
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const projectServerIds = new Set(projectServers.map(s => s.id));
+        tools = tools.filter(tool => projectServerIds.has(tool.serverId));
+      }
+
+      res.json({ tools });
+    } catch (error) {
+      this.logger.error('Tool list error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to list tools',
+      });
+    }
   }
 
   private async handleResourceList(req: AuthenticatedRequest, res: Response): Promise<void> {
-    // Will be implemented with McpAggregator integration
-    // Use req.projectId to filter resources to project-scoped servers
-    const projectContext = req.projectId ? { projectId: req.projectId } : {};
-    res.status(501).json({
-      error: 'Not implemented',
-      ...projectContext,
-    });
+    try {
+      const serverId = req.query.server_id as string;
+      if (!serverId) {
+        res.status(400).json({ error: 'server_id query parameter required' });
+        return;
+      }
+
+      // Verify server is within project scope if project context exists
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const isInProject = projectServers.some(s => s.id === serverId);
+        if (!isInProject) {
+          res.status(403).json({
+            error: `Server ${serverId} is not in project ${req.projectId}`,
+          });
+          return;
+        }
+      }
+
+      const resources = await this.mcpAggregator.listResources(req.token.id, serverId);
+      res.json({ resources });
+    } catch (error) {
+      this.logger.error('Resource list error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to list resources',
+      });
+    }
   }
 
   private async handleResourceRead(req: AuthenticatedRequest, res: Response): Promise<void> {
-    // Will be implemented with McpAggregator integration
-    // Use req.projectId to filter resources to project-scoped servers
-    const projectContext = req.projectId ? { projectId: req.projectId } : {};
-    res.status(501).json({
-      error: 'Not implemented',
-      ...projectContext,
-    });
+    try {
+      const serverId = req.query.server_id as string;
+      const uri = req.query.uri as string;
+
+      if (!serverId || !uri) {
+        res.status(400).json({ error: 'server_id and uri query parameters required' });
+        return;
+      }
+
+      // Verify server is within project scope if project context exists
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const isInProject = projectServers.some(s => s.id === serverId);
+        if (!isInProject) {
+          res.status(403).json({
+            error: `Server ${serverId} is not in project ${req.projectId}`,
+          });
+          return;
+        }
+      }
+
+      const content = await this.mcpAggregator.readResource(req.token.id, serverId, uri);
+      res.json(content);
+    } catch (error) {
+      this.logger.error('Resource read error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to read resource',
+      });
+    }
   }
 
+  /**
+   * GET /mcp/sse - Server-Sent Events endpoint for streaming MCP responses (Issue #17)
+   * Maintains persistent connection for real-time updates.
+   */
   private handleSseConnection(req: AuthenticatedRequest, res: Response): void {
+    const connectionId = this.generateRequestId();
+
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('X-SSE-Connection-ID', connectionId);
+
+    // Store connection for streaming responses
+    this.sseConnections.set(connectionId, res);
 
     // Send initial connection message with project context
-    res.write(`data: ${JSON.stringify({
-      type: 'connected',
+    this.sendSseEvent(res, 'connected', {
+      connectionId,
       projectId: req.projectId || null,
       projectSlug: req.projectSlug || null,
-    })}\n\n`);
+      clientId: req.token.clientId,
+      timestamp: Date.now(),
+    });
 
     // Heartbeat to keep connection alive
     const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n');
+      this.sendSseEvent(res, 'heartbeat', { timestamp: Date.now() });
     }, 30000);
 
     // Cleanup on client disconnect
     req.on('close', () => {
       clearInterval(heartbeat);
+      this.sseConnections.delete(connectionId);
       this.logger.debug('SSE connection closed', {
+        connectionId,
         clientId: req.token.clientId,
         projectId: req.projectId,
       });
     });
+
+    this.logger.debug('SSE connection established', {
+      connectionId,
+      clientId: req.token.clientId,
+      projectId: req.projectId,
+    });
+  }
+
+  /**
+   * Send an event to a specific SSE connection.
+   */
+  private sendSseEvent(res: Response, event: string, data: unknown): void {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  }
+
+  /**
+   * Broadcast an event to all active SSE connections.
+   * Can be used for server status updates, approval notifications, etc.
+   */
+  public broadcastSseEvent(event: string, data: unknown, projectId?: string): void {
+    for (const [connectionId, res] of this.sseConnections) {
+      try {
+        // If projectId filter is specified, only send to connections in that project
+        // Note: We'd need to store project context with connections for full filtering
+        this.sendSseEvent(res, event, {
+          ...data as Record<string, unknown>,
+          broadcast: true,
+          projectId,
+        });
+      } catch (error) {
+        this.logger.warn('Failed to send SSE broadcast', {
+          connectionId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        // Connection may be dead, remove it
+        this.sseConnections.delete(connectionId);
+      }
+    }
   }
 
   // ============================================================================

@@ -16,9 +16,21 @@ import type {
 /**
  * MCP Aggregator service for routing tool calls to appropriate servers.
  * Implements policy enforcement, rate limiting, and approval workflows.
+ *
+ * Tool Naming Convention (Issue #18):
+ * - Original tool: read_file
+ * - Namespaced tool: filesystem-server.read_file
+ * This prevents collisions when multiple servers have tools with the same name.
  */
 @injectable()
 export class McpAggregator implements IMcpAggregator {
+  /** Cache for aggregated tools (server ID -> tools) */
+  private toolCache: Map<string, MCPTool[]> = new Map();
+  /** Last refresh time for tool cache */
+  private lastCacheRefresh: number = 0;
+  /** Cache TTL in milliseconds (5 minutes) */
+  private readonly cacheTTL = 5 * 60 * 1000;
+
   constructor(
     @inject(TYPES.ServerManager) private serverManager: IServerManager,
     @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator,
@@ -190,6 +202,15 @@ export class McpAggregator implements IMcpAggregator {
       throw new Error(tokenResult.error ?? 'Invalid token');
     }
 
+    // Check if cache is still valid
+    const now = Date.now();
+    const cacheValid = now - this.lastCacheRefresh < this.cacheTTL;
+
+    if (!cacheValid) {
+      this.logger.debug('Tool cache expired, refreshing');
+      await this.refreshToolCache();
+    }
+
     const allTools: MCPTool[] = [];
     const servers = this.serverManager.getRunningServers();
 
@@ -200,18 +221,113 @@ export class McpAggregator implements IMcpAggregator {
         continue;
       }
 
+      // Get tools from cache or fetch
+      let tools = this.toolCache.get(server.id);
+      if (!tools) {
+        try {
+          tools = await this.serverManager.getServerTools(server.id);
+          this.toolCache.set(server.id, tools);
+        } catch (error) {
+          this.logger.warn('Failed to list tools for server', {
+            serverId: server.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          continue;
+        }
+      }
+
+      // Add namespaced tools to result (Issue #18: tool aggregation with namespacing)
+      const namespacedTools = tools.map(tool => this.namespaceTool(tool, server));
+      allTools.push(...namespacedTools);
+    }
+
+    return allTools;
+  }
+
+  /**
+   * Refresh the tool cache for all running servers.
+   * Called when cache expires or when servers change.
+   */
+  async refreshToolCache(): Promise<void> {
+    this.toolCache.clear();
+    const servers = this.serverManager.getRunningServers();
+
+    for (const server of servers) {
       try {
         const tools = await this.serverManager.getServerTools(server.id);
-        allTools.push(...tools);
+        this.toolCache.set(server.id, tools);
       } catch (error) {
-        this.logger.warn('Failed to list tools for server', {
+        this.logger.warn('Failed to cache tools for server', {
           serverId: server.id,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     }
 
-    return allTools;
+    this.lastCacheRefresh = Date.now();
+    this.logger.info('Tool cache refreshed', {
+      serverCount: servers.length,
+      cachedServers: this.toolCache.size,
+    });
+  }
+
+  /**
+   * Invalidate cache for a specific server.
+   * Called when server connects/disconnects or tools change.
+   */
+  invalidateServerCache(serverId: string): void {
+    this.toolCache.delete(serverId);
+    this.logger.debug('Tool cache invalidated for server', { serverId });
+  }
+
+  /**
+   * Apply namespace prefix to tool name to avoid collisions.
+   * Format: serverName.originalToolName
+   */
+  private namespaceTool(tool: MCPTool, server: { id: string; name: string }): MCPTool {
+    // Create a safe server name for namespacing (slug format)
+    const safeServerName = server.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    return {
+      ...tool,
+      // Keep original name in tool.name for display
+      name: `${safeServerName}.${tool.name}`,
+      // Add metadata for original name and server
+      serverId: server.id,
+      serverName: server.name,
+    };
+  }
+
+  /**
+   * Parse a namespaced tool name into server and tool components.
+   * Format: serverName.originalToolName -> { serverName, toolName }
+   */
+  parseNamespacedTool(namespacedName: string): { serverName: string; toolName: string } | null {
+    const dotIndex = namespacedName.indexOf('.');
+    if (dotIndex === -1) {
+      return null;
+    }
+    return {
+      serverName: namespacedName.substring(0, dotIndex),
+      toolName: namespacedName.substring(dotIndex + 1),
+    };
+  }
+
+  /**
+   * Find a server by its namespaced name prefix.
+   */
+  findServerByNamespace(namespace: string): { id: string; name: string } | undefined {
+    const servers = this.serverManager.getAllServers();
+    return servers.find(s => {
+      const safeServerName = s.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      return safeServerName === namespace;
+    });
   }
 
   async listResources(tokenId: string, serverId: string): Promise<unknown[]> {
