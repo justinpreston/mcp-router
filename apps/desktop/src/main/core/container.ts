@@ -34,6 +34,7 @@ import type {
   IToolCatalog,
   IHttpServer,
   IMcpAggregator,
+  IMcpClientFactory,
   IJsonRpcHandler,
   IStdioTransport,
   IHttpTransport,
@@ -67,6 +68,7 @@ import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
 import { SecureHttpServer } from '@main/services/http/secure-http-server.service';
 import { McpAggregator } from '@main/services/mcp/mcp-aggregator.service';
+import { McpClientFactory } from '@main/services/mcp/mcp-client-factory';
 import { JsonRpcHandler } from '@main/services/mcp/json-rpc-handler';
 import { StdioTransport } from '@main/services/mcp/stdio-transport';
 import { HttpTransport } from '@main/services/mcp/http-transport';
@@ -152,6 +154,7 @@ export function createContainer(): Container {
   // ============================================================================
   // MCP Protocol Layer (JSON-RPC, Transports, Client)
   // ============================================================================
+  container.bind<IMcpClientFactory>(TYPES.McpClientFactory).to(McpClientFactory);
   container.bind<IJsonRpcHandler>(TYPES.JsonRpcHandler).to(JsonRpcHandler);
   container.bind<IStdioTransport>(TYPES.StdioTransport).to(StdioTransport);
   container.bind<IHttpTransport>(TYPES.HttpTransport).to(HttpTransport);

@@ -563,8 +563,12 @@ export interface IMcpAggregator {
     args: Record<string, unknown>
   ): Promise<McpResponse>;
   listTools(tokenId: string): Promise<MCPTool[]>;
-  listResources(tokenId: string, serverId: string): Promise<unknown[]>;
-  readResource(tokenId: string, serverId: string, uri: string): Promise<unknown>;
+  listResources(tokenId: string, serverId: string): Promise<McpResource[]>;
+  readResource(tokenId: string, serverId: string, uri: string): Promise<McpResourceContent>;
+  listPrompts(tokenId: string, serverId: string): Promise<McpPrompt[]>;
+  getPrompt(tokenId: string, serverId: string, promptName: string, args?: Record<string, string>): Promise<McpPromptMessage[]>;
+  listAllPrompts(tokenId: string): Promise<McpPrompt[]>;
+  listAllResources(tokenId: string): Promise<McpResource[]>;
 }
 
 // ============================================================================

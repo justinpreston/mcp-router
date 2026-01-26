@@ -7,6 +7,7 @@ import type {
   IServerRepository,
   ILogger,
   IAuditService,
+  IMcpClientFactory,
   MCPServer,
   MCPTool,
   ServerStatus,
@@ -29,7 +30,8 @@ export class ServerManager implements IServerManager {
   constructor(
     @inject(TYPES.ServerRepository) private serverRepo: IServerRepository,
     @inject(TYPES.Logger) private logger: ILogger,
-    @inject(TYPES.AuditService) private auditService: IAuditService
+    @inject(TYPES.AuditService) private auditService: IAuditService,
+    @inject(TYPES.McpClientFactory) private mcpClientFactory: IMcpClientFactory
   ) {
     this.loadServersFromDatabase();
   }
@@ -326,9 +328,32 @@ export class ServerManager implements IServerManager {
       throw new Error('Server must be running to list tools');
     }
 
-    // TODO: Implement MCP protocol communication to get tools
-    // This will be implemented when we add the MCP SDK integration
-    return [];
+    // Use the MCP client factory to get tools
+    try {
+      let client = this.mcpClientFactory.getClient(serverId);
+
+      if (!client) {
+        client = this.mcpClientFactory.createClient(server);
+      }
+
+      if (!client.isConnected()) {
+        await client.connect();
+      }
+
+      const tools = await client.listTools();
+      this.logger.debug('Retrieved tools from server', {
+        serverId,
+        toolCount: tools.length,
+      });
+
+      return tools;
+    } catch (error) {
+      this.logger.error('Failed to get server tools', {
+        serverId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
   }
 
   /**

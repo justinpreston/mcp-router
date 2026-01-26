@@ -555,20 +555,43 @@ export class SecureHttpServer implements IHttpServer {
     params?: Record<string, unknown>
   ): Promise<{ resources: unknown[] }> {
     const serverId = params?.server_id as string | undefined;
-    if (!serverId) {
-      throw new Error('server_id is required');
+
+    // If server_id specified, get resources from that server only
+    if (serverId) {
+      // Verify server is within project scope if project context exists
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const isInProject = projectServers.some(s => s.id === serverId);
+        if (!isInProject) {
+          throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
+        }
+      }
+
+      const resources = await this.mcpAggregator.listResources(req.token.id, serverId);
+      return { resources };
     }
 
-    // Verify server is within project scope if project context exists
+    // Otherwise, get all resources from all accessible servers
+    let resources = await this.mcpAggregator.listAllResources(req.token.id);
+
+    // Apply project-scoped filtering if project context is present
     if (req.projectId) {
       const projectServers = this.serverManager.getServersByProject(req.projectId);
-      const isInProject = projectServers.some(s => s.id === serverId);
-      if (!isInProject) {
-        throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
-      }
+      // Filter resources by checking if the URI namespace matches a project server
+      resources = resources.filter(resource => {
+        const match = resource.uri.match(/^mcpr:\/\/([^/]+)\//);
+        if (!match) return false;
+        const serverNamespace = match[1];
+        return projectServers.some(s => {
+          const safeServerName = s.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          return safeServerName === serverNamespace;
+        });
+      });
     }
 
-    const resources = await this.mcpAggregator.listResources(req.token.id, serverId);
     return { resources };
   }
 
@@ -599,22 +622,80 @@ export class SecureHttpServer implements IHttpServer {
   }
 
   /**
-   * JSON-RPC prompts/list handler (stub).
+   * JSON-RPC prompts/list handler.
    */
-  private async jsonRpcPromptsList(_req: AuthenticatedRequest): Promise<{ prompts: unknown[] }> {
-    // TODO: Implement prompts listing when McpClient supports it
-    return { prompts: [] };
+  private async jsonRpcPromptsList(
+    req: AuthenticatedRequest,
+    params?: Record<string, unknown>
+  ): Promise<{ prompts: unknown[] }> {
+    const serverId = params?.server_id as string | undefined;
+
+    // If server_id specified, get prompts from that server only
+    if (serverId) {
+      // Verify server is within project scope if project context exists
+      if (req.projectId) {
+        const projectServers = this.serverManager.getServersByProject(req.projectId);
+        const isInProject = projectServers.some(s => s.id === serverId);
+        if (!isInProject) {
+          throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
+        }
+      }
+
+      const prompts = await this.mcpAggregator.listPrompts(req.token.id, serverId);
+      return { prompts };
+    }
+
+    // Otherwise, get all prompts from all accessible servers
+    let prompts = await this.mcpAggregator.listAllPrompts(req.token.id);
+
+    // Apply project-scoped filtering if project context is present
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      // Filter prompts - need to check by namespace prefix
+      prompts = prompts.filter(prompt => {
+        const dotIndex = prompt.name.indexOf('.');
+        if (dotIndex === -1) return false;
+        const serverNamespace = prompt.name.substring(0, dotIndex);
+        // Check if any project server matches this namespace
+        return projectServers.some(s => {
+          const safeServerName = s.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          return safeServerName === serverNamespace;
+        });
+      });
+    }
+
+    return { prompts };
   }
 
   /**
-   * JSON-RPC prompts/get handler (stub).
+   * JSON-RPC prompts/get handler.
    */
   private async jsonRpcPromptsGet(
-    _req: AuthenticatedRequest,
-    _params?: Record<string, unknown>
+    req: AuthenticatedRequest,
+    params?: Record<string, unknown>
   ): Promise<unknown> {
-    // TODO: Implement prompt retrieval when McpClient supports it
-    throw new Error('prompts/get not yet implemented');
+    const serverId = params?.server_id as string | undefined;
+    const name = params?.name as string | undefined;
+    const args = params?.arguments as Record<string, string> | undefined;
+
+    if (!serverId || !name) {
+      throw new Error('server_id and name are required');
+    }
+
+    // Verify server is within project scope if project context exists
+    if (req.projectId) {
+      const projectServers = this.serverManager.getServersByProject(req.projectId);
+      const isInProject = projectServers.some(s => s.id === serverId);
+      if (!isInProject) {
+        throw new Error(`Server ${serverId} is not in project ${req.projectId}`);
+      }
+    }
+
+    const messages = await this.mcpAggregator.getPrompt(req.token.id, serverId, name, args);
+    return { messages };
   }
 
   private async handleToolCall(req: AuthenticatedRequest, res: Response): Promise<void> {

@@ -2,6 +2,7 @@ import { injectable, inject } from 'inversify';
 import { TYPES } from '@main/core/types';
 import type {
   IMcpAggregator,
+  IMcpClientFactory,
   IServerManager,
   ITokenValidator,
   IPolicyEngine,
@@ -11,6 +12,10 @@ import type {
   ILogger,
   MCPTool,
   McpResponse,
+  McpResource,
+  McpResourceContent,
+  McpPrompt,
+  McpPromptMessage,
 } from '@main/core/interfaces';
 
 /**
@@ -31,7 +36,13 @@ export class McpAggregator implements IMcpAggregator {
   /** Cache TTL in milliseconds (5 minutes) */
   private readonly cacheTTL = 5 * 60 * 1000;
 
+  /** Cache for resources (server ID -> resources) */
+  private resourceCache: Map<string, McpResource[]> = new Map();
+  /** Cache for prompts (server ID -> prompts) */
+  private promptCache: Map<string, McpPrompt[]> = new Map();
+
   constructor(
+    @inject(TYPES.McpClientFactory) private clientFactory: IMcpClientFactory,
     @inject(TYPES.ServerManager) private serverManager: IServerManager,
     @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator,
     @inject(TYPES.PolicyEngine) private policyEngine: IPolicyEngine,
@@ -143,8 +154,7 @@ export class McpAggregator implements IMcpAggregator {
       }
 
       // 6. Execute tool call
-      // TODO: Implement actual MCP protocol communication
-      // For now, return a stub response
+      const result = await this.executeMcpToolCall(server.id, toolName, args);
       const duration = Date.now() - startTime;
 
       await this.auditService.log({
@@ -163,14 +173,7 @@ export class McpAggregator implements IMcpAggregator {
       });
 
       return {
-        result: {
-          content: [
-            {
-              type: 'text',
-              text: 'Tool execution not yet implemented',
-            },
-          ],
-        },
+        result,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -330,26 +333,274 @@ export class McpAggregator implements IMcpAggregator {
     });
   }
 
-  async listResources(tokenId: string, serverId: string): Promise<unknown[]> {
+  async listResources(tokenId: string, serverId: string): Promise<McpResource[]> {
     // Validate token for server
     const tokenResult = await this.tokenValidator.validateForServer(tokenId, serverId);
     if (!tokenResult.valid) {
       throw new Error(tokenResult.error ?? 'Invalid token');
     }
 
-    // TODO: Implement MCP resource listing
-    return [];
+    const server = this.serverManager.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (server.status !== 'running') {
+      throw new Error('Server must be running to list resources');
+    }
+
+    // Check cache first
+    const cachedResources = this.resourceCache.get(serverId);
+    if (cachedResources) {
+      return cachedResources;
+    }
+
+    // Get or create MCP client for server
+    const client = await this.getOrCreateClient(serverId);
+    if (!client) {
+      throw new Error('Failed to create MCP client');
+    }
+
+    try {
+      const resources = await client.listResources();
+
+      // Namespace resources with server info
+      const namespacedResources = resources.map(resource => ({
+        ...resource,
+        uri: this.namespaceUri(resource.uri, server.name),
+      }));
+
+      this.resourceCache.set(serverId, namespacedResources);
+      this.logger.debug('Listed resources from server', {
+        serverId,
+        count: resources.length,
+      });
+
+      return namespacedResources;
+    } catch (error) {
+      this.logger.error('Failed to list resources', {
+        serverId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
   }
 
-  async readResource(tokenId: string, serverId: string, _uri: string): Promise<unknown> {
+  async readResource(tokenId: string, serverId: string, uri: string): Promise<McpResourceContent> {
     // Validate token for server
     const tokenResult = await this.tokenValidator.validateForServer(tokenId, serverId);
     if (!tokenResult.valid) {
       throw new Error(tokenResult.error ?? 'Invalid token');
     }
 
-    // TODO: Implement MCP resource reading
-    return null;
+    const server = this.serverManager.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (server.status !== 'running') {
+      throw new Error('Server must be running to read resources');
+    }
+
+    // Get or create MCP client for server
+    const client = await this.getOrCreateClient(serverId);
+    if (!client) {
+      throw new Error('Failed to create MCP client');
+    }
+
+    // Remove namespace prefix from URI if present
+    const originalUri = this.parseNamespacedUri(uri) ?? uri;
+
+    try {
+      const content = await client.readResource(originalUri);
+      this.logger.debug('Read resource from server', {
+        serverId,
+        uri: originalUri,
+      });
+      return content;
+    } catch (error) {
+      this.logger.error('Failed to read resource', {
+        serverId,
+        uri: originalUri,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List prompts from a specific server.
+   */
+  async listPrompts(tokenId: string, serverId: string): Promise<McpPrompt[]> {
+    // Validate token for server
+    const tokenResult = await this.tokenValidator.validateForServer(tokenId, serverId);
+    if (!tokenResult.valid) {
+      throw new Error(tokenResult.error ?? 'Invalid token');
+    }
+
+    const server = this.serverManager.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (server.status !== 'running') {
+      throw new Error('Server must be running to list prompts');
+    }
+
+    // Check cache first
+    const cachedPrompts = this.promptCache.get(serverId);
+    if (cachedPrompts) {
+      return cachedPrompts;
+    }
+
+    // Get or create MCP client for server
+    const client = await this.getOrCreateClient(serverId);
+    if (!client) {
+      throw new Error('Failed to create MCP client');
+    }
+
+    try {
+      const prompts = await client.listPrompts();
+
+      // Namespace prompts with server info
+      const namespacedPrompts = prompts.map(prompt => ({
+        ...prompt,
+        name: this.namespacePromptName(prompt.name, server.name),
+      }));
+
+      this.promptCache.set(serverId, namespacedPrompts);
+      this.logger.debug('Listed prompts from server', {
+        serverId,
+        count: prompts.length,
+      });
+
+      return namespacedPrompts;
+    } catch (error) {
+      this.logger.error('Failed to list prompts', {
+        serverId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get a prompt with optional arguments.
+   */
+  async getPrompt(
+    tokenId: string,
+    serverId: string,
+    promptName: string,
+    args?: Record<string, string>
+  ): Promise<McpPromptMessage[]> {
+    // Validate token for server
+    const tokenResult = await this.tokenValidator.validateForServer(tokenId, serverId);
+    if (!tokenResult.valid) {
+      throw new Error(tokenResult.error ?? 'Invalid token');
+    }
+
+    const server = this.serverManager.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (server.status !== 'running') {
+      throw new Error('Server must be running to get prompts');
+    }
+
+    // Get or create MCP client for server
+    const client = await this.getOrCreateClient(serverId);
+    if (!client) {
+      throw new Error('Failed to create MCP client');
+    }
+
+    // Remove namespace prefix from prompt name if present
+    const originalName = this.parseNamespacedPromptName(promptName) ?? promptName;
+
+    try {
+      const messages = await client.getPrompt(originalName, args);
+      this.logger.debug('Got prompt from server', {
+        serverId,
+        promptName: originalName,
+        messageCount: messages.length,
+      });
+      return messages;
+    } catch (error) {
+      this.logger.error('Failed to get prompt', {
+        serverId,
+        promptName: originalName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List all prompts from all running servers.
+   */
+  async listAllPrompts(tokenId: string): Promise<McpPrompt[]> {
+    // Validate token
+    const tokenResult = await this.tokenValidator.validate(tokenId);
+    if (!tokenResult.valid || !tokenResult.token) {
+      throw new Error(tokenResult.error ?? 'Invalid token');
+    }
+
+    const allPrompts: McpPrompt[] = [];
+    const servers = this.serverManager.getRunningServers();
+
+    for (const server of servers) {
+      // Check if token has access to this server
+      const serverAccess = await this.tokenValidator.validateForServer(tokenId, server.id);
+      if (!serverAccess.valid) {
+        continue;
+      }
+
+      try {
+        const prompts = await this.listPrompts(tokenId, server.id);
+        allPrompts.push(...prompts);
+      } catch (error) {
+        this.logger.warn('Failed to list prompts for server', {
+          serverId: server.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return allPrompts;
+  }
+
+  /**
+   * List all resources from all running servers.
+   */
+  async listAllResources(tokenId: string): Promise<McpResource[]> {
+    // Validate token
+    const tokenResult = await this.tokenValidator.validate(tokenId);
+    if (!tokenResult.valid || !tokenResult.token) {
+      throw new Error(tokenResult.error ?? 'Invalid token');
+    }
+
+    const allResources: McpResource[] = [];
+    const servers = this.serverManager.getRunningServers();
+
+    for (const server of servers) {
+      // Check if token has access to this server
+      const serverAccess = await this.tokenValidator.validateForServer(tokenId, server.id);
+      if (!serverAccess.valid) {
+        continue;
+      }
+
+      try {
+        const resources = await this.listResources(tokenId, server.id);
+        allResources.push(...resources);
+      } catch (error) {
+        this.logger.warn('Failed to list resources for server', {
+          serverId: server.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return allResources;
   }
 
   /**
@@ -363,5 +614,85 @@ export class McpAggregator implements IMcpAggregator {
         data,
       },
     };
+  }
+
+  /**
+   * Execute an MCP tool call via the client factory.
+   */
+  private async executeMcpToolCall(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<unknown> {
+    const client = await this.getOrCreateClient(serverId);
+    if (!client) {
+      throw new Error('Failed to create MCP client');
+    }
+
+    return client.callTool(toolName, args);
+  }
+
+  /**
+   * Get or create an MCP client for a server.
+   * Ensures the client is connected before returning.
+   */
+  private async getOrCreateClient(serverId: string): Promise<ReturnType<typeof this.clientFactory.getClient>> {
+    const server = this.serverManager.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    let client = this.clientFactory.getClient(serverId);
+
+    if (!client) {
+      client = this.clientFactory.createClient(server);
+    }
+
+    if (!client.isConnected()) {
+      await client.connect();
+    }
+
+    return client;
+  }
+
+  /**
+   * Namespace a resource URI with server name prefix.
+   */
+  private namespaceUri(uri: string, serverName: string): string {
+    const safeServerName = serverName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    return `mcpr://${safeServerName}/${uri}`;
+  }
+
+  /**
+   * Parse a namespaced URI to extract the original URI.
+   */
+  private parseNamespacedUri(uri: string): string | null {
+    const match = uri.match(/^mcpr:\/\/[^/]+\/(.+)$/);
+    return match?.[1] ?? null;
+  }
+
+  /**
+   * Namespace a prompt name with server name prefix.
+   */
+  private namespacePromptName(name: string, serverName: string): string {
+    const safeServerName = serverName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    return `${safeServerName}.${name}`;
+  }
+
+  /**
+   * Parse a namespaced prompt name to extract the original name.
+   */
+  private parseNamespacedPromptName(name: string): string | null {
+    const dotIndex = name.indexOf('.');
+    if (dotIndex === -1) {
+      return null;
+    }
+    return name.substring(dotIndex + 1);
   }
 }

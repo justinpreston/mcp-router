@@ -8,6 +8,7 @@
  * - SseTransport: Server-Sent Events for streaming responses
  * - ProcessHealthMonitor: Crash recovery and automatic restart
  * - McpClientService: High-level MCP client for tool/resource/prompt operations
+ * - McpClientFactory: Factory for creating per-server MCP client instances
  * - McpAggregator: Aggregates multiple MCP servers behind a unified interface
  */
 
@@ -18,4 +19,5 @@ export { HttpTransport } from './http-transport';
 export { SseTransport } from './sse-transport';
 export { ProcessHealthMonitor } from './process-health-monitor';
 export { McpClientService } from './mcp-client.service';
+export { McpClientFactory } from './mcp-client-factory';
 export type { McpClientOptions } from './mcp-client.service';
