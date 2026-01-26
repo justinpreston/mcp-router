@@ -65,7 +65,8 @@ import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
 import { MemoryService } from '@main/services/memory/memory.service';
-import { LocalEmbeddingProvider, type IEmbeddingProvider } from '@main/services/memory/embedding.provider';
+import { type IEmbeddingProvider } from '@main/services/memory/embedding.provider';
+import { NeuralEmbeddingProvider } from '@main/services/memory/neural-embedding.provider';
 import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
 import { BM25SearchProvider, type ISearchProvider } from '@main/services/catalog/bm25-search.provider';
@@ -150,7 +151,9 @@ export function createContainer(): Container {
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);
-  container.bind<IEmbeddingProvider>(TYPES.EmbeddingProvider).to(LocalEmbeddingProvider);
+  // Use NeuralEmbeddingProvider for high-quality semantic embeddings (Transformers.js)
+  // Falls back to LocalEmbeddingProvider if neural provider fails to load
+  container.bind<IEmbeddingProvider>(TYPES.EmbeddingProvider).to(NeuralEmbeddingProvider);
   container.bind<IMemoryService>(TYPES.MemoryService).to(MemoryService);
   container.bind<IAuditService>(TYPES.AuditService).to(AuditService);
   container.bind<ISearchProvider>(TYPES.BM25SearchProvider).to(BM25SearchProvider);

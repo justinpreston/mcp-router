@@ -407,14 +407,15 @@ export class MemoryService implements IMemoryService {
     let failed = 0;
 
     for (let i = 0; i < allMemories.length; i++) {
-      const memory = allMemories[i];
+      const memory = allMemories[i]!;
       try {
         const embedding = await this.embeddingProvider.embed(memory.content);
-        await this.memoryRepo.update({
+        const updatedMemory: Memory = {
           ...memory,
           embedding,
           updatedAt: Date.now(),
-        });
+        };
+        await this.memoryRepo.update(updatedMemory);
         success++;
       } catch (error) {
         this.logger.warn('Failed to regenerate embedding', {
@@ -540,7 +541,7 @@ export class MemoryService implements IMemoryService {
         const parsedTags: string[] = [];
 
         for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
+          const line = lines[i]!;
           if (line.startsWith('**Type:**')) {
             parsedType = line.replace('**Type:**', '').trim() as MemoryType;
           } else if (line.startsWith('**Importance:**')) {
