@@ -113,7 +113,7 @@ describe('ApprovalQueueService', () => {
       await approvalQueue.respond(request.id, {
         approved: false,
         respondedBy: 'admin',
-        reason: 'Too dangerous',
+        note: 'Too dangerous',
       });
 
       const result = await promise;

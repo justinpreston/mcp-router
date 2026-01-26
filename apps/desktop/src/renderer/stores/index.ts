@@ -20,3 +20,12 @@ export {
   selectSelectedApproval,
   selectPendingCount,
 } from './approvalStore';
+
+export {
+  useSkillStore,
+  selectSkills,
+  selectSelectedSkill,
+  selectEnabledSkills,
+  selectSkillsByProject,
+  selectSkillById,
+} from './skillStore';

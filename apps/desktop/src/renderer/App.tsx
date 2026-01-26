@@ -4,6 +4,7 @@ import { NavItem } from '@renderer/features/layout/Sidebar';
 import { Dashboard } from '@renderer/features/dashboard';
 import { PolicyList, AddPolicyDialog } from '@renderer/features/policies';
 import { ApprovalQueue } from '@renderer/features/approvals';
+import { SkillList } from '@renderer/features/skills';
 import { TooltipProvider } from '@renderer/components/ui';
 
 // Settings page - will be expanded later
@@ -24,6 +25,8 @@ export function App() {
     switch (activeNav) {
       case 'servers':
         return 'Servers';
+      case 'skills':
+        return 'Skills';
       case 'policies':
         return 'Policies';
       case 'approvals':
@@ -39,6 +42,8 @@ export function App() {
     switch (activeNav) {
       case 'servers':
         return <Dashboard />;
+      case 'skills':
+        return <SkillList />;
       case 'policies':
         return (
           <>

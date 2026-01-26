@@ -103,6 +103,25 @@ const electronAPI: ElectronAPI = {
     refresh: () => ipcRenderer.invoke('catalog:refresh'),
   },
 
+  // Skills management
+  skills: {
+    list: (projectId?: string) => ipcRenderer.invoke('skills:list', { projectId }),
+    get: (id: string) => ipcRenderer.invoke('skills:get', { skillId: id }),
+    register: (config: unknown) => ipcRenderer.invoke('skills:register', config),
+    update: (id: string, updates: unknown) =>
+      ipcRenderer.invoke('skills:update', { skillId: id, updates }),
+    delete: (id: string) => ipcRenderer.invoke('skills:delete', { skillId: id }),
+    enable: (id: string) => ipcRenderer.invoke('skills:enable', { skillId: id }),
+    disable: (id: string) => ipcRenderer.invoke('skills:disable', { skillId: id }),
+    refresh: (id: string) => ipcRenderer.invoke('skills:refresh', { skillId: id }),
+    discover: (directory: string) => ipcRenderer.invoke('skills:discover', { directory }),
+    createSymlink: (sourcePath: string, targetDir: string, name: string) =>
+      ipcRenderer.invoke('skills:createSymlink', { sourcePath, targetDir, name }),
+    removeSymlink: (symlinkPath: string) =>
+      ipcRenderer.invoke('skills:removeSymlink', { symlinkPath }),
+    toServerConfig: (id: string) => ipcRenderer.invoke('skills:toServerConfig', { skillId: id }),
+  },
+
   // Auto-updater
   updater: {
     check: () => ipcRenderer.invoke('updater:check'),

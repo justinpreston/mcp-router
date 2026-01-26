@@ -89,6 +89,22 @@ export interface ElectronAPI {
     refresh: () => Promise<void>;
   };
 
+  // Skills management
+  skills: {
+    list: (projectId?: string) => Promise<SkillInfo[]>;
+    get: (id: string) => Promise<SkillInfo | null>;
+    register: (config: SkillCreateConfig) => Promise<SkillInfo>;
+    update: (id: string, updates: Partial<SkillInfo>) => Promise<SkillInfo>;
+    delete: (id: string) => Promise<void>;
+    enable: (id: string) => Promise<void>;
+    disable: (id: string) => Promise<void>;
+    refresh: (id: string) => Promise<SkillInfo>;
+    discover: (directory: string) => Promise<SkillInfo[]>;
+    createSymlink: (sourcePath: string, targetDir: string, name: string) => Promise<string>;
+    removeSymlink: (symlinkPath: string) => Promise<void>;
+    toServerConfig: (id: string) => Promise<unknown>;
+  };
+
   // Auto-updater
   updater: {
     check: () => Promise<UpdateCheckResultInfo>;
@@ -269,6 +285,59 @@ export interface CatalogToolInfo {
   lastUsedAt?: number;
   usageCount: number;
   avgDuration?: number;
+}
+
+// Skill types
+export type SkillSource = 'local' | 'symlink' | 'remote' | 'builtin';
+export type SkillStatus = 'available' | 'loading' | 'error' | 'disabled';
+
+export interface SkillManifest {
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  license?: string;
+  main?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  transport?: 'stdio' | 'sse' | 'http';
+  dependencies?: Record<string, string>;
+  capabilities?: string[];
+}
+
+export interface SkillInfo {
+  id: string;
+  name: string;
+  description?: string;
+  path?: string;
+  url?: string;
+  source: SkillSource;
+  serverConfig?: {
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+    transport: 'stdio' | 'sse' | 'http';
+  };
+  manifest?: SkillManifest;
+  status: SkillStatus;
+  projectId?: string;
+  tags: string[];
+  enabled: boolean;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  lastCheckedAt?: number;
+}
+
+export interface SkillCreateConfig {
+  name: string;
+  description?: string;
+  path?: string;
+  url?: string;
+  source: SkillSource;
+  projectId?: string;
+  tags?: string[];
 }
 
 // Auto-updater types

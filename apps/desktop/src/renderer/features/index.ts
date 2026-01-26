@@ -95,3 +95,11 @@ export {
   type WorkflowEdge,
   type NodeType,
 } from './workflows';
+
+// Skills features
+export {
+  SkillList,
+  SkillCard,
+  AddSkillDialog,
+  DiscoverSkillsDialog,
+} from './skills';

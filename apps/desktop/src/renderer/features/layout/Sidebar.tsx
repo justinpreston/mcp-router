@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Button, Badge } from '@renderer/components/ui';
 import { useApprovalStore, selectPendingCount } from '@renderer/stores';
 
-export type NavItem = 'servers' | 'policies' | 'approvals' | 'settings';
+export type NavItem = 'servers' | 'skills' | 'policies' | 'approvals' | 'settings';
 
 export interface SidebarProps {
   activeItem: NavItem;
@@ -59,6 +59,12 @@ export function Sidebar({ activeItem, onNavigate }: SidebarProps) {
           label="Servers"
           isActive={activeItem === 'servers'}
           onClick={handleNavigate('servers')}
+        />
+        <NavButton
+          item="skills"
+          label="Skills"
+          isActive={activeItem === 'skills'}
+          onClick={handleNavigate('skills')}
         />
         <NavButton
           item="policies"
