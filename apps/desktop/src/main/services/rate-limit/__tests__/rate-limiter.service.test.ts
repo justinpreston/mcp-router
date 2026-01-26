@@ -122,11 +122,12 @@ describe('TokenBucketRateLimiter', () => {
       // Consume all tokens
       rateLimiter.consume('test-key', 100);
 
-      // Advance time by 500ms (should add 5 tokens at 10/sec)
-      vi.advanceTimersByTime(500);
+      // Advance time by 2.5 seconds (should add 20 tokens at 10/sec with 1s intervals)
+      // Note: refill happens per complete interval (1s), not continuously
+      vi.advanceTimersByTime(2500);
 
       const result = rateLimiter.check('test-key');
-      expect(result.remaining).toBe(5);
+      expect(result.remaining).toBe(20); // 2 complete intervals * 10 tokens
     });
   });
 

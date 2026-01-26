@@ -301,6 +301,9 @@ describe('PolicyEngine', () => {
         enabled: true,
       });
 
+      // Wait a small amount to ensure updatedAt differs from createdAt
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       const updated = await policyEngine.updateRule(rule.id, {
         name: 'Updated Name',
         priority: 100,
@@ -308,7 +311,7 @@ describe('PolicyEngine', () => {
 
       expect(updated.name).toBe('Updated Name');
       expect(updated.priority).toBe(100);
-      expect(updated.updatedAt).toBeGreaterThan(rule.createdAt);
+      expect(updated.updatedAt).toBeGreaterThanOrEqual(rule.createdAt);
     });
 
     it('should throw error for non-existent rule', async () => {

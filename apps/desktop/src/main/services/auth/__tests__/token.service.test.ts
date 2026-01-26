@@ -187,7 +187,8 @@ describe('TokenService', () => {
     it('should return invalid for non-existent token', async () => {
       vi.mocked(keytar.getPassword).mockResolvedValue(null);
 
-      const result = await tokenService.validateToken('mcpr_nonexistent' + 'a'.repeat(38));
+      // Use a properly formatted token ID (mcpr_ + 43 chars)
+      const result = await tokenService.validateToken('mcpr_' + 'a'.repeat(43));
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe('Token not found');
@@ -286,8 +287,9 @@ describe('TokenService', () => {
     it('should throw error for invalid token', async () => {
       vi.mocked(keytar.getPassword).mockResolvedValue(null);
 
+      // Use a properly formatted token ID (mcpr_ + 43 chars)
       await expect(
-        tokenService.refreshToken('mcpr_nonexistent' + 'a'.repeat(38))
+        tokenService.refreshToken('mcpr_' + 'a'.repeat(43))
       ).rejects.toThrow('Token not found');
     });
   });
