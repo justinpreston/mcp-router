@@ -6,6 +6,7 @@ import type {
   Memory,
   MemorySearchResult,
   MemorySearchOptions,
+  MemoryType,
 } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
 import {
@@ -24,6 +25,8 @@ export interface MemoryInfo {
   id: string;
   content: string;
   tags: string[];
+  type: MemoryType;
+  importance: number;
   source?: string;
   metadata?: Record<string, unknown>;
   accessCount: number;
@@ -48,6 +51,8 @@ function toMemoryInfo(memory: Memory): MemoryInfo {
     id: memory.id,
     content: memory.content,
     tags: memory.tags,
+    type: memory.type,
+    importance: memory.importance,
     source: memory.source,
     metadata: memory.metadata,
     accessCount: memory.accessCount,
@@ -176,5 +181,197 @@ export function registerMemoryHandlers(container: Container): void {
 
     const validId = validateInput(MemoryIdSchema, id);
     await memoryService.delete(validId);
+  });
+
+  // Get memory statistics
+  ipcMain.handle('memory:getStatistics', async () => {
+    logger.debug('IPC: memory:getStatistics');
+    const stats = await memoryService.getStatistics();
+    // Map the internal statistics to API format
+    return {
+      totalCount: stats.total,
+      byType: stats.byType,
+      byTag: stats.byTag,
+      avgImportance: stats.averageImportance,
+      avgAccessCount: stats.averageAccessCount,
+      totalAccessCount: Math.round(stats.averageAccessCount * stats.total),
+      recentlyAccessed: stats.recentlyAccessed,
+      oldestMemory: undefined, // Not available in current stats
+      newestMemory: undefined, // Not available in current stats
+    };
+  });
+
+  // Semantic search
+  ipcMain.handle(
+    'memory:searchSemantic',
+    async (_event, query: unknown, options?: unknown) => {
+      logger.debug('IPC: memory:searchSemantic', { query });
+
+      const validQuery = validateInput(NonEmptyString.max(500), query);
+      const validOptions = options ? validateInput(SearchOptionsSchema, options) : {};
+
+      const results = await memoryService.searchSemantic({
+        query: validQuery,
+        limit: validOptions?.topK || 10,
+        minSimilarity: validOptions?.minScore || 0.5,
+      });
+      return results.map(toSearchResultInfo);
+    }
+  );
+
+  // Hybrid search
+  ipcMain.handle(
+    'memory:searchHybrid',
+    async (_event, query: unknown, options?: unknown) => {
+      logger.debug('IPC: memory:searchHybrid', { query });
+
+      const validQuery = validateInput(NonEmptyString.max(500), query);
+      const validOptions = options ? validateInput(SearchOptionsSchema, options) : {};
+
+      const results = await memoryService.searchHybrid({
+        query: validQuery,
+        limit: validOptions?.topK || 10,
+        minSimilarity: validOptions?.minScore || 0.3,
+      });
+      return results.map(toSearchResultInfo);
+    }
+  );
+
+  // Search by type - implemented using repository directly
+  ipcMain.handle(
+    'memory:searchByType',
+    async (_event, type: unknown, options?: unknown) => {
+      logger.debug('IPC: memory:searchByType', { type });
+
+      const validType = validateInput(z.enum(['note', 'conversation', 'code', 'document', 'task', 'reference']), type);
+      const validOptions = options ? validateInput(ListOptionsSchema, options) : {};
+
+      // Use getAll and filter by type since searchByType isn't on the service
+      const allMemories = await memoryService.getAll(validOptions);
+      const filtered = allMemories.filter(m => m.type === validType);
+      return filtered.map(toMemoryInfo);
+    }
+  );
+
+  // Add tags to memory - use update method
+  ipcMain.handle(
+    'memory:addTags',
+    async (_event, id: unknown, tags: unknown) => {
+      logger.debug('IPC: memory:addTags', { id, tags });
+
+      const validId = validateInput(MemoryIdSchema, id);
+      const validTags = validateInput(TagsArraySchema, tags);
+
+      // Get current memory and add tags
+      const memory = await memoryService.retrieve(validId);
+      if (!memory) {
+        throw new Error(`Memory not found: ${validId}`);
+      }
+      const newTags = [...new Set([...memory.tags, ...validTags])];
+      const updated = await memoryService.update(validId, { tags: newTags });
+      return toMemoryInfo(updated);
+    }
+  );
+
+  // Remove tags from memory - use update method
+  ipcMain.handle(
+    'memory:removeTags',
+    async (_event, id: unknown, tags: unknown) => {
+      logger.debug('IPC: memory:removeTags', { id, tags });
+
+      const validId = validateInput(MemoryIdSchema, id);
+      const validTags = validateInput(TagsArraySchema, tags);
+
+      // Get current memory and remove tags
+      const memory = await memoryService.retrieve(validId);
+      if (!memory) {
+        throw new Error(`Memory not found: ${validId}`);
+      }
+      const tagsSet = new Set(validTags);
+      const newTags = memory.tags.filter(t => !tagsSet.has(t));
+      const updated = await memoryService.update(validId, { tags: newTags });
+      return toMemoryInfo(updated);
+    }
+  );
+
+  // Bulk add tags
+  ipcMain.handle(
+    'memory:bulkAddTags',
+    async (_event, ids: unknown, tags: unknown) => {
+      logger.debug('IPC: memory:bulkAddTags', { count: Array.isArray(ids) ? ids.length : 0 });
+
+      const validIds = validateInput(z.array(MemoryIdSchema).min(1).max(100), ids);
+      const validTags = validateInput(TagsArraySchema, tags);
+
+      // Add each tag to all memories
+      let totalModified = 0;
+      for (const tag of validTags) {
+        const modified = await memoryService.bulkAddTag(validIds, tag);
+        totalModified += modified;
+      }
+      return totalModified;
+    }
+  );
+
+  // Bulk remove tags
+  ipcMain.handle(
+    'memory:bulkRemoveTags',
+    async (_event, ids: unknown, tags: unknown) => {
+      logger.debug('IPC: memory:bulkRemoveTags', { count: Array.isArray(ids) ? ids.length : 0 });
+
+      const validIds = validateInput(z.array(MemoryIdSchema).min(1).max(100), ids);
+      const validTags = validateInput(TagsArraySchema, tags);
+
+      // Remove each tag from all memories
+      let totalModified = 0;
+      for (const tag of validTags) {
+        const modified = await memoryService.bulkRemoveTag(validIds, tag);
+        totalModified += modified;
+      }
+      return totalModified;
+    }
+  );
+
+  // Export memories
+  ipcMain.handle(
+    'memory:export',
+    async (_event, format: unknown, filter?: unknown) => {
+      logger.debug('IPC: memory:export', { format });
+
+      const validFormat = validateInput(z.enum(['json', 'markdown']), format);
+      const validFilter = filter ? validateInput(z.object({
+        tags: z.array(z.string()).optional(),
+        type: z.enum(['note', 'conversation', 'code', 'document', 'task', 'reference']).optional(),
+        minImportance: z.number().min(0).max(1).optional(),
+        startDate: z.number().optional(),
+        endDate: z.number().optional(),
+      }).optional(), filter) : undefined;
+
+      return memoryService.exportMemories({
+        format: validFormat as 'json' | 'markdown',
+        types: validFilter?.type ? [validFilter.type as MemoryType] : undefined,
+        tags: validFilter?.tags,
+      });
+    }
+  );
+
+  // Import memories
+  ipcMain.handle(
+    'memory:import',
+    async (_event, data: unknown, format: unknown) => {
+      logger.debug('IPC: memory:import', { format });
+
+      const validFormat = validateInput(z.enum(['json', 'markdown']), format);
+      const validData = validateInput(z.string().min(1).max(10_000_000), data); // 10MB max
+
+      return memoryService.importMemories(validData, validFormat as 'json' | 'markdown');
+    }
+  );
+
+  // Regenerate embeddings
+  ipcMain.handle('memory:regenerateEmbeddings', async () => {
+    logger.debug('IPC: memory:regenerateEmbeddings');
+    const result = await memoryService.regenerateEmbeddings();
+    return result.success;
   });
 }

@@ -81,11 +81,25 @@ const electronAPI: ElectronAPI = {
     get: (id: string) => ipcRenderer.invoke('memory:get', id),
     search: (query: string, options?: unknown) =>
       ipcRenderer.invoke('memory:search', query, options),
+    searchSemantic: (query: string, options?: unknown) =>
+      ipcRenderer.invoke('memory:searchSemantic', query, options),
+    searchHybrid: (query: string, options?: unknown) =>
+      ipcRenderer.invoke('memory:searchHybrid', query, options),
     searchByTags: (tags: string[], options?: unknown) =>
       ipcRenderer.invoke('memory:searchByTags', tags, options),
+    searchByType: (type: string, options?: unknown) =>
+      ipcRenderer.invoke('memory:searchByType', type, options),
     list: (options?: unknown) => ipcRenderer.invoke('memory:list', options),
     update: (id: string, updates: unknown) => ipcRenderer.invoke('memory:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('memory:delete', id),
+    getStatistics: () => ipcRenderer.invoke('memory:getStatistics'),
+    addTags: (id: string, tags: string[]) => ipcRenderer.invoke('memory:addTags', id, tags),
+    removeTags: (id: string, tags: string[]) => ipcRenderer.invoke('memory:removeTags', id, tags),
+    bulkAddTags: (ids: string[], tags: string[]) => ipcRenderer.invoke('memory:bulkAddTags', ids, tags),
+    bulkRemoveTags: (ids: string[], tags: string[]) => ipcRenderer.invoke('memory:bulkRemoveTags', ids, tags),
+    export: (format: string, filter?: unknown) => ipcRenderer.invoke('memory:export', format, filter),
+    import: (data: string, format: string) => ipcRenderer.invoke('memory:import', data, format),
+    regenerateEmbeddings: () => ipcRenderer.invoke('memory:regenerateEmbeddings'),
   },
 
   // Tool catalog

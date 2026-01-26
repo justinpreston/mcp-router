@@ -111,3 +111,9 @@ export {
   type ClientCardProps,
   type ClientSyncPanelProps,
 } from './sync';
+
+// Memory features
+export {
+  MemoryStatsDashboard,
+  MemoryImportExportPanel,
+} from './memory';

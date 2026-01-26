@@ -32,3 +32,5 @@ export {
 } from './skillStore';
 
 export { useSyncStore } from './syncStore';
+
+export { useMemoryStore } from './memoryStore';
