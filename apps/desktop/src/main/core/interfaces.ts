@@ -145,6 +145,75 @@ export interface IServerRepository {
 }
 
 // ============================================================================
+// Project Management
+// ============================================================================
+
+/**
+ * Project entity for organizing servers, workspaces, and configurations.
+ * Projects enable multi-tenant routing via x-mcpr-project header.
+ */
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  /** Project slug for URL-safe identification */
+  slug: string;
+  /** Root directory path for project files */
+  rootPath?: string;
+  /** Server IDs associated with this project */
+  serverIds: string[];
+  /** Workspace IDs associated with this project */
+  workspaceIds: string[];
+  /** Whether the project is active */
+  active: boolean;
+  /** Project-level settings */
+  settings: ProjectSettings;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectSettings {
+  /** Default policy for tool execution */
+  defaultToolPolicy?: PolicyAction;
+  /** Whether to require approval for all tools */
+  requireApproval?: boolean;
+  /** Rate limit for this project (requests per minute) */
+  rateLimit?: number;
+  /** Custom environment variables for project servers */
+  env?: Record<string, string>;
+}
+
+export interface ProjectCreateInput {
+  name: string;
+  description?: string;
+  slug?: string;
+  rootPath?: string;
+  settings?: Partial<ProjectSettings>;
+}
+
+export interface IProjectService {
+  createProject(input: ProjectCreateInput): Promise<Project>;
+  getProject(projectId: string): Promise<Project | null>;
+  getProjectBySlug(slug: string): Promise<Project | null>;
+  getAllProjects(): Promise<Project[]>;
+  updateProject(projectId: string, updates: Partial<Project>): Promise<Project>;
+  deleteProject(projectId: string): Promise<void>;
+  addServerToProject(projectId: string, serverId: string): Promise<void>;
+  removeServerFromProject(projectId: string, serverId: string): Promise<void>;
+  addWorkspaceToProject(projectId: string, workspaceId: string): Promise<void>;
+  removeWorkspaceFromProject(projectId: string, workspaceId: string): Promise<void>;
+}
+
+export interface IProjectRepository {
+  create(project: Project): Promise<Project>;
+  findById(id: string): Promise<Project | null>;
+  findBySlug(slug: string): Promise<Project | null>;
+  findAll(): Promise<Project[]>;
+  update(project: Project): Promise<Project>;
+  delete(id: string): Promise<void>;
+}
+
+// ============================================================================
 // Workspace Management
 // ============================================================================
 

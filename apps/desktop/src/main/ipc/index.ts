@@ -5,6 +5,7 @@ import { registerTokenHandlers } from './tokens.handler';
 import { registerPolicyHandlers } from './policies.handler';
 import { registerApprovalHandlers, setupApprovalNotifications } from './approvals.handler';
 import { registerWorkspaceHandlers } from './workspaces.handler';
+import { registerProjectHandlers } from './projects.handler';
 import { registerMemoryHandlers } from './memory.handler';
 import { registerCatalogHandlers } from './catalog.handler';
 
@@ -14,6 +15,7 @@ export { registerTokenHandlers } from './tokens.handler';
 export { registerPolicyHandlers } from './policies.handler';
 export { registerApprovalHandlers, setupApprovalNotifications } from './approvals.handler';
 export { registerWorkspaceHandlers } from './workspaces.handler';
+export { registerProjectHandlers } from './projects.handler';
 export { registerMemoryHandlers } from './memory.handler';
 export { registerCatalogHandlers } from './catalog.handler';
 export * from './validation-schemas';
@@ -35,6 +37,7 @@ export function registerAllIpcHandlers(container: Container): void {
   registerPolicyHandlers(container);
   registerApprovalHandlers(container);
   registerWorkspaceHandlers(container);
+  registerProjectHandlers(container);
   registerMemoryHandlers(container);
   registerCatalogHandlers(container);
 

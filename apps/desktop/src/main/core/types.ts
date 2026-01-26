@@ -12,6 +12,7 @@ export const TYPES = {
   TokenService: Symbol.for('TokenService'),
   ServerManager: Symbol.for('ServerManager'),
   WorkspaceService: Symbol.for('WorkspaceService'),
+  ProjectService: Symbol.for('ProjectService'),
   PolicyEngine: Symbol.for('PolicyEngine'),
   ApprovalQueue: Symbol.for('ApprovalQueue'),
   RateLimiter: Symbol.for('RateLimiter'),
@@ -26,6 +27,7 @@ export const TYPES = {
   MemoryRepository: Symbol.for('MemoryRepository'),
   AuditRepository: Symbol.for('AuditRepository'),
   WorkspaceRepository: Symbol.for('WorkspaceRepository'),
+  ProjectRepository: Symbol.for('ProjectRepository'),
 
   // HTTP Layer
   HttpServer: Symbol.for('HttpServer'),

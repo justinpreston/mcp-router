@@ -214,6 +214,28 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);
         `,
       },
+      {
+        name: '002_projects_table',
+        up: `
+          -- Projects table for multi-tenant organization
+          CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            slug TEXT NOT NULL UNIQUE,
+            root_path TEXT,
+            server_ids TEXT NOT NULL DEFAULT '[]',
+            workspace_ids TEXT NOT NULL DEFAULT '[]',
+            active INTEGER NOT NULL DEFAULT 1,
+            settings TEXT NOT NULL DEFAULT '{}',
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
+          CREATE INDEX IF NOT EXISTS idx_projects_active ON projects(active);
+        `,
+      },
     ];
 
     // Apply pending migrations

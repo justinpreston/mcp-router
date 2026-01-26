@@ -12,6 +12,8 @@ import type {
   IServerRepository,
   IWorkspaceService,
   IWorkspaceRepository,
+  IProjectService,
+  IProjectRepository,
   IPolicyEngine,
   IPolicyRepository,
   IApprovalQueue,
@@ -43,6 +45,7 @@ import { TokenService } from '@main/services/auth/token.service';
 import { TokenValidator } from '@main/services/auth/token-validator.service';
 import { ServerManager } from '@main/services/server/server-manager.service';
 import { WorkspaceService } from '@main/services/workspace/workspace.service';
+import { ProjectService } from '@main/services/project/project.service';
 import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
@@ -66,6 +69,7 @@ import { WorkspaceRepository } from '@main/repositories/workspace.repository';
 import { PolicyRepository } from '@main/repositories/policy.repository';
 import { MemoryRepository } from '@main/repositories/memory.repository';
 import { AuditRepository } from '@main/repositories/audit.repository';
+import { ProjectRepository } from '@main/repositories/project.repository';
 
 /**
  * Creates and configures the InversifyJS dependency injection container.
@@ -93,6 +97,7 @@ export function createContainer(): Container {
   container.bind<IPolicyRepository>(TYPES.PolicyRepository).to(PolicyRepository);
   container.bind<IMemoryRepository>(TYPES.MemoryRepository).to(MemoryRepository);
   container.bind<IAuditRepository>(TYPES.AuditRepository).to(AuditRepository);
+  container.bind<IProjectRepository>(TYPES.ProjectRepository).to(ProjectRepository);
 
   // ============================================================================
   // Services
@@ -101,6 +106,7 @@ export function createContainer(): Container {
   container.bind<ITokenValidator>(TYPES.TokenValidator).to(TokenValidator);
   container.bind<IServerManager>(TYPES.ServerManager).to(ServerManager);
   container.bind<IWorkspaceService>(TYPES.WorkspaceService).to(WorkspaceService);
+  container.bind<IProjectService>(TYPES.ProjectService).to(ProjectService);
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);
