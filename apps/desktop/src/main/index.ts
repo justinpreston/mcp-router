@@ -4,7 +4,16 @@ import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { initializeContainer, disposeContainer, getContainer } from './core/container';
 import { TYPES } from './core/types';
-import type { IHttpServer, ILogger, IDeepLinkHandler, ITrayService } from './core/interfaces';
+import type { 
+  IHttpServer, 
+  ILogger, 
+  IDeepLinkHandler, 
+  ITrayService,
+  IServerManager,
+  IWorkspaceService,
+  IApprovalQueue,
+  ServerTransport,
+} from './core/interfaces';
 import { registerAllIpcHandlers } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -102,19 +111,131 @@ async function initialize(): Promise<void> {
   logger.debug('Deep link handler registered');
 
   // Set up deep link action handlers
+  const serverManager = container.get<IServerManager>(TYPES.ServerManager);
+  const workspaceService = container.get<IWorkspaceService>(TYPES.WorkspaceService);
+  const approvalQueue = container.get<IApprovalQueue>(TYPES.ApprovalQueue);
+
   deepLinkHandler.onAction('connect-server', async (link) => {
     logger.info('Deep link: connect-server', { params: link.params });
-    // TODO: Implement server connection from deep link
+    
+    try {
+      const { url, name, type } = link.params;
+      if (!url) {
+        logger.warn('connect-server deep link missing URL');
+        return;
+      }
+
+      // Parse the server URL to determine transport type
+      const serverUrl = new URL(url);
+      const transport: ServerTransport = (type as ServerTransport) || 
+        (serverUrl.protocol === 'http:' || serverUrl.protocol === 'https:' ? 'http' : 'stdio');
+      
+      // Create server config
+      const serverConfig = {
+        name: name || `Server from ${serverUrl.hostname}`,
+        command: transport === 'stdio' ? url : '',
+        url: transport !== 'stdio' ? url : undefined,
+        transport,
+        args: [],
+        env: {},
+        workingDirectory: undefined,
+        autoStart: true,
+        toolPermissions: {},
+      };
+
+      // Add the server
+      const server = await serverManager.addServer(serverConfig);
+      logger.info('Server added via deep link', { serverId: server.id, name: server.name });
+
+      // Navigate to servers page in UI
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send('navigate', { route: 'servers', params: { id: server.id } });
+      }
+    } catch (error) {
+      logger.error('Failed to connect server via deep link', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 
   deepLinkHandler.onAction('approve-request', async (link) => {
     logger.info('Deep link: approve-request', { params: link.params });
-    // TODO: Implement approval handling from deep link
+    
+    try {
+      const { id, action } = link.params;
+      if (!id || !action) {
+        logger.warn('approve-request deep link missing id or action');
+        return;
+      }
+
+      // Get the approval request
+      const request = await approvalQueue.getRequest(id);
+      if (!request) {
+        logger.warn('Approval request not found', { id });
+        return;
+      }
+
+      if (request.status !== 'pending') {
+        logger.warn('Approval request already resolved', { id, status: request.status });
+        return;
+      }
+
+      // Respond to the approval
+      await approvalQueue.respond(id, {
+        approved: action === 'approve',
+        note: `Handled via deep link`,
+      });
+
+      logger.info('Approval handled via deep link', { id, action });
+
+      // Navigate to approvals page
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send('navigate', { route: 'approvals' });
+      }
+    } catch (error) {
+      logger.error('Failed to handle approval via deep link', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 
   deepLinkHandler.onAction('open-workspace', async (link) => {
     logger.info('Deep link: open-workspace', { params: link.params });
-    // TODO: Implement workspace opening from deep link
+    
+    try {
+      const { id } = link.params;
+      if (!id) {
+        logger.warn('open-workspace deep link missing id');
+        return;
+      }
+
+      // Get the workspace
+      const workspace = await workspaceService.getWorkspace(id);
+      if (!workspace) {
+        logger.warn('Workspace not found', { id });
+        return;
+      }
+
+      logger.info('Workspace opened via deep link', { id, name: workspace.name });
+
+      // Navigate to workspace view
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send('navigate', { route: 'workspaces', params: { id } });
+      }
+    } catch (error) {
+      logger.error('Failed to open workspace via deep link', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 
   // Initialize system tray

@@ -26,5 +26,11 @@
     "prettier": "^3.2.4",
     "turbo": "^2.0.0",
     "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar": ">=7.5.4",
+      "esbuild": ">=0.25.0"
+    }
   }
 }

@@ -23,7 +23,7 @@ export class MemoryRepository implements IMemoryRepository {
       memory.content,
       memory.contentHash,
       JSON.stringify(memory.tags),
-      memory.embedding ?? null,
+      memory.embedding ? JSON.stringify(memory.embedding) : null,
       memory.source ?? null,
       memory.metadata ? JSON.stringify(memory.metadata) : null,
       memory.accessCount,
@@ -111,7 +111,7 @@ export class MemoryRepository implements IMemoryRepository {
       memory.content,
       memory.contentHash,
       JSON.stringify(memory.tags),
-      memory.embedding ?? null,
+      memory.embedding ? JSON.stringify(memory.embedding) : null,
       memory.source ?? null,
       memory.metadata ? JSON.stringify(memory.metadata) : null,
       memory.accessCount,
@@ -155,12 +155,24 @@ export class MemoryRepository implements IMemoryRepository {
    * Map database row to Memory object.
    */
   private mapRowToMemory(row: MemoryRow): Memory {
+    // Convert embedding Buffer to number array
+    let embedding: number[] | undefined;
+    if (row.embedding) {
+      try {
+        // Embedding stored as JSON string in SQLite
+        embedding = JSON.parse(row.embedding.toString());
+      } catch {
+        // Legacy format or invalid - skip
+        embedding = undefined;
+      }
+    }
+
     return {
       id: row.id,
       content: row.content,
       contentHash: row.content_hash,
       tags: JSON.parse(row.tags),
-      embedding: row.embedding ?? undefined,
+      embedding,
       source: row.source ?? undefined,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       accessCount: row.access_count,

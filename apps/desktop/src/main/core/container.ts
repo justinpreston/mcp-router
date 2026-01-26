@@ -64,8 +64,10 @@ import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
 import { MemoryService } from '@main/services/memory/memory.service';
+import { LocalEmbeddingProvider, type IEmbeddingProvider } from '@main/services/memory/embedding.provider';
 import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
+import { BM25SearchProvider, type ISearchProvider } from '@main/services/catalog/bm25-search.provider';
 import { SecureHttpServer } from '@main/services/http/secure-http-server.service';
 import { McpAggregator } from '@main/services/mcp/mcp-aggregator.service';
 import { McpClientFactory } from '@main/services/mcp/mcp-client-factory';
@@ -141,8 +143,10 @@ export function createContainer(): Container {
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);
+  container.bind<IEmbeddingProvider>(TYPES.EmbeddingProvider).to(LocalEmbeddingProvider);
   container.bind<IMemoryService>(TYPES.MemoryService).to(MemoryService);
   container.bind<IAuditService>(TYPES.AuditService).to(AuditService);
+  container.bind<ISearchProvider>(TYPES.BM25SearchProvider).to(BM25SearchProvider);
   container.bind<IToolCatalog>(TYPES.ToolCatalog).to(ToolCatalogService);
 
   // ============================================================================

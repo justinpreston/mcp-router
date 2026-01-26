@@ -5,7 +5,9 @@ import type {
   IServerManager,
   ILogger,
   CatalogTool,
+  ToolSearchResult,
 } from '@main/core/interfaces';
+import type { ISearchProvider } from './bm25-search.provider';
 
 /**
  * Tool catalog service for managing and searching MCP tools.
@@ -19,7 +21,8 @@ export class ToolCatalogService implements IToolCatalog {
 
   constructor(
     @inject(TYPES.ServerManager) private serverManager: IServerManager,
-    @inject(TYPES.Logger) private logger: ILogger
+    @inject(TYPES.Logger) private logger: ILogger,
+    @inject(TYPES.BM25SearchProvider) private searchProvider: ISearchProvider
   ) {}
 
   async getAllTools(): Promise<CatalogTool[]> {
@@ -39,18 +42,13 @@ export class ToolCatalogService implements IToolCatalog {
   }
 
   async searchTools(query: string): Promise<CatalogTool[]> {
-    const allTools = await this.getAllTools();
-    const queryLower = query.toLowerCase();
+    const results = await this.searchToolsWithScore(query);
+    return results.map(r => r.tool);
+  }
 
-    // Simple text search with BM25-style scoring
-    return allTools
-      .map(tool => ({
-        tool,
-        score: this.calculateSearchScore(tool, queryLower),
-      }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(({ tool }) => tool);
+  async searchToolsWithScore(query: string, limit: number = 20): Promise<ToolSearchResult[]> {
+    await this.refreshIfNeeded();
+    return this.searchProvider.search(query, limit);
   }
 
   async enableTool(serverId: string, toolName: string): Promise<void> {
@@ -105,10 +103,14 @@ export class ToolCatalogService implements IToolCatalog {
       }
     }
 
+    // Rebuild BM25 search index with all tools
+    const allTools = Array.from(this.toolCache.values()).flat();
+    this.searchProvider.index(allTools);
+
     this.lastRefresh = Date.now();
     this.logger.debug('Tool catalog refreshed', {
       serverCount: servers.length,
-      toolCount: Array.from(this.toolCache.values()).flat().length,
+      toolCount: allTools.length,
     });
   }
 
@@ -119,43 +121,5 @@ export class ToolCatalogService implements IToolCatalog {
     if (Date.now() - this.lastRefresh > this.CACHE_TTL) {
       await this.refreshCatalog();
     }
-  }
-
-  /**
-   * Calculate search relevance score for a tool.
-   */
-  private calculateSearchScore(tool: CatalogTool, query: string): number {
-    let score = 0;
-
-    // Exact name match
-    if (tool.name.toLowerCase() === query) {
-      score += 10;
-    }
-    // Name contains query
-    else if (tool.name.toLowerCase().includes(query)) {
-      score += 5;
-    }
-
-    // Description match
-    if (tool.description) {
-      const descLower = tool.description.toLowerCase();
-      if (descLower.includes(query)) {
-        score += 2;
-      }
-    }
-
-    // Word matching
-    const queryWords = query.split(/\s+/);
-    const nameWords = tool.name.toLowerCase().split(/[-_]/);
-
-    for (const qWord of queryWords) {
-      for (const nWord of nameWords) {
-        if (nWord.startsWith(qWord)) {
-          score += 1;
-        }
-      }
-    }
-
-    return score;
   }
 }

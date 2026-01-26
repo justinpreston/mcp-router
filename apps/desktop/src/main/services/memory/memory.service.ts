@@ -11,16 +11,18 @@ import type {
   MemorySearchOptions,
   MemorySearchResult,
 } from '@main/core/interfaces';
+import type { IEmbeddingProvider } from './embedding.provider';
 
 /**
  * Memory service for storing and retrieving contextual information.
- * Supports semantic search via embeddings (to be implemented with embedding provider).
+ * Supports semantic search via embeddings.
  */
 @injectable()
 export class MemoryService implements IMemoryService {
   constructor(
     @inject(TYPES.MemoryRepository) private memoryRepo: IMemoryRepository,
-    @inject(TYPES.Logger) private logger: ILogger
+    @inject(TYPES.Logger) private logger: ILogger,
+    @inject(TYPES.EmbeddingProvider) private embeddingProvider: IEmbeddingProvider
   ) {}
 
   async store(input: MemoryInput): Promise<Memory> {
@@ -49,8 +51,14 @@ export class MemoryService implements IMemoryService {
       lastAccessedAt: now,
     };
 
-    // TODO: Generate embedding when embedding provider is available
-    // memory.embedding = await this.embeddingProvider.embed(input.content);
+    // Generate embedding for semantic search
+    try {
+      memory.embedding = await this.embeddingProvider.embed(input.content);
+    } catch (error) {
+      this.logger.warn('Failed to generate embedding', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
 
     await this.memoryRepo.create(memory);
 
@@ -74,27 +82,42 @@ export class MemoryService implements IMemoryService {
   }
 
   async search(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult[]> {
-    // TODO: Implement semantic search with embeddings
-    // For now, use simple text matching
     const allMemories = await this.memoryRepo.findAll({
       limit: 1000, // Get candidates for filtering
     });
+
+    // Generate query embedding for semantic search
+    let queryEmbedding: number[] | null = null;
+    try {
+      queryEmbedding = await this.embeddingProvider.embed(query);
+    } catch (error) {
+      this.logger.warn('Failed to generate query embedding, falling back to text search', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
 
     const queryLower = query.toLowerCase();
     const results: MemorySearchResult[] = [];
 
     for (const memory of allMemories) {
-      // Simple text matching score
-      const contentLower = memory.content.toLowerCase();
       let score = 0;
 
-      if (contentLower.includes(queryLower)) {
-        score = 0.8;
+      // Semantic similarity (if embedding available)
+      if (queryEmbedding && memory.embedding) {
+        const semanticScore = this.embeddingProvider.similarity(queryEmbedding, memory.embedding);
+        score = Math.max(0, semanticScore); // Ensure non-negative
       } else {
-        // Check individual words
-        const queryWords = queryLower.split(/\s+/);
-        const matchedWords = queryWords.filter(word => contentLower.includes(word));
-        score = matchedWords.length / queryWords.length * 0.6;
+        // Fallback to text matching
+        const contentLower = memory.content.toLowerCase();
+        
+        if (contentLower.includes(queryLower)) {
+          score = 0.8;
+        } else {
+          // Check individual words
+          const queryWords = queryLower.split(/\s+/);
+          const matchedWords = queryWords.filter(word => contentLower.includes(word));
+          score = matchedWords.length / queryWords.length * 0.6;
+        }
       }
 
       // Apply tag filter if specified
@@ -140,7 +163,15 @@ export class MemoryService implements IMemoryService {
     // Recalculate hash if content changed
     if (updates.content && updates.content !== existing.content) {
       updatedMemory.contentHash = this.hashContent(updates.content);
-      // TODO: Regenerate embedding
+      // Regenerate embedding for updated content
+      try {
+        updatedMemory.embedding = await this.embeddingProvider.embed(updates.content);
+      } catch (error) {
+        this.logger.warn('Failed to regenerate embedding', {
+          memoryId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
 
     await this.memoryRepo.update(updatedMemory);

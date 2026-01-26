@@ -387,7 +387,7 @@ export interface Memory {
   content: string;
   contentHash: string;
   tags: string[];
-  embedding?: Buffer;
+  embedding?: number[];
   source?: string;
   metadata?: Record<string, unknown>;
   accessCount: number;
@@ -516,10 +516,17 @@ export interface CatalogTool extends MCPTool {
   avgDuration?: number;
 }
 
+export interface ToolSearchResult {
+  tool: CatalogTool;
+  score: number;
+  highlights: string[];
+}
+
 export interface IToolCatalog {
   getAllTools(): Promise<CatalogTool[]>;
   getToolsByServer(serverId: string): Promise<CatalogTool[]>;
   searchTools(query: string): Promise<CatalogTool[]>;
+  searchToolsWithScore(query: string, limit?: number): Promise<ToolSearchResult[]>;
   enableTool(serverId: string, toolName: string): Promise<void>;
   disableTool(serverId: string, toolName: string): Promise<void>;
   isToolEnabled(serverId: string, toolName: string): Promise<boolean>;

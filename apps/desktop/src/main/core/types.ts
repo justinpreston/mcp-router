@@ -22,6 +22,7 @@ export const TYPES = {
   ApprovalQueue: Symbol.for('ApprovalQueue'),
   RateLimiter: Symbol.for('RateLimiter'),
   MemoryService: Symbol.for('MemoryService'),
+  EmbeddingProvider: Symbol.for('EmbeddingProvider'),
   AuditService: Symbol.for('AuditService'),
   ToolCatalog: Symbol.for('ToolCatalog'),
 
@@ -41,6 +42,9 @@ export const TYPES = {
   // HTTP Layer
   HttpServer: Symbol.for('HttpServer'),
   TokenValidator: Symbol.for('TokenValidator'),
+
+  // Search
+  BM25SearchProvider: Symbol.for('BM25SearchProvider'),
 
   // MCP Transport & Client
   McpAggregator: Symbol.for('McpAggregator'),
