@@ -817,6 +817,241 @@ export interface IProcessHealthMonitor {
 }
 
 // ============================================================================
+// Workflow Engine
+// ============================================================================
+
+/**
+ * Workflow status for tracking execution state.
+ */
+export type WorkflowStatus =
+  | 'draft'
+  | 'active'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+/**
+ * Workflow step types for different actions.
+ */
+export type WorkflowStepType =
+  | 'tool_call'
+  | 'condition'
+  | 'loop'
+  | 'parallel'
+  | 'wait'
+  | 'transform'
+  | 'webhook';
+
+/**
+ * Individual step in a workflow.
+ */
+export interface WorkflowStep {
+  id: string;
+  name: string;
+  type: WorkflowStepType;
+  /** Server ID for tool_call steps */
+  serverId?: string;
+  /** Tool name for tool_call steps */
+  toolName?: string;
+  /** Arguments/config for the step */
+  config: Record<string, unknown>;
+  /** Step IDs that must complete before this step */
+  dependsOn?: string[];
+  /** Condition expression for conditional execution */
+  condition?: string;
+  /** Timeout in milliseconds */
+  timeout?: number;
+  /** Number of retry attempts on failure */
+  retries?: number;
+  /** Whether to continue workflow on step failure */
+  continueOnError?: boolean;
+}
+
+/**
+ * Trigger configuration for automatic workflow execution.
+ */
+export interface WorkflowTrigger {
+  type: 'manual' | 'schedule' | 'webhook' | 'event';
+  /** Cron expression for schedule triggers */
+  schedule?: string;
+  /** Event pattern for event triggers */
+  eventPattern?: string;
+  /** Webhook path for webhook triggers */
+  webhookPath?: string;
+  /** Whether trigger is enabled */
+  enabled: boolean;
+}
+
+/**
+ * Workflow definition entity.
+ */
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  /** Project this workflow belongs to */
+  projectId?: string;
+  /** Ordered list of steps */
+  steps: WorkflowStep[];
+  /** Trigger configuration */
+  trigger?: WorkflowTrigger;
+  /** Default input schema */
+  inputSchema?: Record<string, unknown>;
+  /** Workflow status */
+  status: WorkflowStatus;
+  /** Version for optimistic locking */
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+  lastRunAt?: number;
+}
+
+/**
+ * Status of an individual step execution.
+ */
+export type StepExecutionStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled';
+
+/**
+ * Execution record for a single step.
+ */
+export interface StepExecution {
+  stepId: string;
+  stepName: string;
+  status: StepExecutionStatus;
+  startedAt?: number;
+  completedAt?: number;
+  input?: unknown;
+  output?: unknown;
+  error?: string;
+  retryCount: number;
+}
+
+/**
+ * Workflow execution run instance.
+ */
+export interface WorkflowExecution {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  workflowVersion: number;
+  status: WorkflowStatus;
+  /** Input provided to the workflow */
+  input?: Record<string, unknown>;
+  /** Final output from the workflow */
+  output?: unknown;
+  /** Error message if failed */
+  error?: string;
+  /** Execution record for each step */
+  steps: StepExecution[];
+  /** ID of currently executing step */
+  currentStepId?: string;
+  startedAt: number;
+  completedAt?: number;
+  /** User/client who triggered the execution */
+  triggeredBy?: string;
+}
+
+export interface WorkflowCreateInput {
+  name: string;
+  description?: string;
+  projectId?: string;
+  steps: Omit<WorkflowStep, 'id'>[];
+  trigger?: WorkflowTrigger;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface IWorkflowService {
+  /** Create a new workflow */
+  createWorkflow(input: WorkflowCreateInput): Promise<Workflow>;
+  /** Get a workflow by ID */
+  getWorkflow(workflowId: string): Promise<Workflow | null>;
+  /** Get all workflows */
+  getAllWorkflows(): Promise<Workflow[]>;
+  /** Get workflows by project */
+  getWorkflowsByProject(projectId: string): Promise<Workflow[]>;
+  /** Update a workflow */
+  updateWorkflow(workflowId: string, updates: Partial<Workflow>): Promise<Workflow>;
+  /** Delete a workflow */
+  deleteWorkflow(workflowId: string): Promise<void>;
+  /** Activate a workflow (enable triggers) */
+  activateWorkflow(workflowId: string): Promise<void>;
+  /** Deactivate a workflow (disable triggers) */
+  deactivateWorkflow(workflowId: string): Promise<void>;
+  /** Execute a workflow manually */
+  executeWorkflow(workflowId: string, input?: Record<string, unknown>, triggeredBy?: string): Promise<WorkflowExecution>;
+  /** Get execution by ID */
+  getExecution(executionId: string): Promise<WorkflowExecution | null>;
+  /** Get all executions for a workflow */
+  getExecutions(workflowId: string, options?: { limit?: number; offset?: number }): Promise<WorkflowExecution[]>;
+  /** Cancel a running execution */
+  cancelExecution(executionId: string): Promise<void>;
+  /** Pause a running execution */
+  pauseExecution(executionId: string): Promise<void>;
+  /** Resume a paused execution */
+  resumeExecution(executionId: string): Promise<void>;
+}
+
+export interface IWorkflowRepository {
+  create(workflow: Workflow): Promise<Workflow>;
+  findById(id: string): Promise<Workflow | null>;
+  findAll(): Promise<Workflow[]>;
+  findByProjectId(projectId: string): Promise<Workflow[]>;
+  findByStatus(status: WorkflowStatus): Promise<Workflow[]>;
+  update(workflow: Workflow): Promise<Workflow>;
+  delete(id: string): Promise<void>;
+}
+
+export interface IWorkflowExecutionRepository {
+  create(execution: WorkflowExecution): Promise<WorkflowExecution>;
+  findById(id: string): Promise<WorkflowExecution | null>;
+  findByWorkflowId(workflowId: string, options?: { limit?: number; offset?: number }): Promise<WorkflowExecution[]>;
+  findByStatus(status: WorkflowStatus): Promise<WorkflowExecution[]>;
+  update(execution: WorkflowExecution): Promise<WorkflowExecution>;
+  delete(id: string): Promise<void>;
+}
+
+/**
+ * Workflow executor for running workflow steps.
+ */
+export interface IWorkflowExecutor {
+  /** Execute a single step */
+  executeStep(
+    step: WorkflowStep,
+    context: WorkflowExecutionContext
+  ): Promise<StepExecution>;
+  /** Evaluate a condition expression */
+  evaluateCondition(condition: string, context: WorkflowExecutionContext): boolean;
+  /** Transform data using a transform step config */
+  transformData(config: Record<string, unknown>, input: unknown): unknown;
+}
+
+/**
+ * Context available during workflow execution.
+ */
+export interface WorkflowExecutionContext {
+  /** Current execution ID */
+  executionId: string;
+  /** Workflow being executed */
+  workflow: Workflow;
+  /** Input provided to the workflow */
+  input: Record<string, unknown>;
+  /** Outputs from completed steps (stepId -> output) */
+  stepOutputs: Map<string, unknown>;
+  /** Variables that can be modified during execution */
+  variables: Map<string, unknown>;
+  /** Signal for cancellation */
+  abortSignal?: AbortSignal;
+}
+
+// ============================================================================
 // Security Interfaces
 // ============================================================================
 

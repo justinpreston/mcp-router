@@ -13,6 +13,8 @@ export const TYPES = {
   ServerManager: Symbol.for('ServerManager'),
   WorkspaceService: Symbol.for('WorkspaceService'),
   ProjectService: Symbol.for('ProjectService'),
+  WorkflowService: Symbol.for('WorkflowService'),
+  WorkflowExecutor: Symbol.for('WorkflowExecutor'),
   PolicyEngine: Symbol.for('PolicyEngine'),
   ApprovalQueue: Symbol.for('ApprovalQueue'),
   RateLimiter: Symbol.for('RateLimiter'),
@@ -28,6 +30,8 @@ export const TYPES = {
   AuditRepository: Symbol.for('AuditRepository'),
   WorkspaceRepository: Symbol.for('WorkspaceRepository'),
   ProjectRepository: Symbol.for('ProjectRepository'),
+  WorkflowRepository: Symbol.for('WorkflowRepository'),
+  WorkflowExecutionRepository: Symbol.for('WorkflowExecutionRepository'),
 
   // HTTP Layer
   HttpServer: Symbol.for('HttpServer'),

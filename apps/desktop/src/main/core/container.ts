@@ -14,6 +14,10 @@ import type {
   IWorkspaceRepository,
   IProjectService,
   IProjectRepository,
+  IWorkflowService,
+  IWorkflowRepository,
+  IWorkflowExecutionRepository,
+  IWorkflowExecutor,
   IPolicyEngine,
   IPolicyRepository,
   IApprovalQueue,
@@ -46,6 +50,7 @@ import { TokenValidator } from '@main/services/auth/token-validator.service';
 import { ServerManager } from '@main/services/server/server-manager.service';
 import { WorkspaceService } from '@main/services/workspace/workspace.service';
 import { ProjectService } from '@main/services/project/project.service';
+import { WorkflowService, WorkflowExecutor } from '@main/services/workflow';
 import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
@@ -70,6 +75,8 @@ import { PolicyRepository } from '@main/repositories/policy.repository';
 import { MemoryRepository } from '@main/repositories/memory.repository';
 import { AuditRepository } from '@main/repositories/audit.repository';
 import { ProjectRepository } from '@main/repositories/project.repository';
+import { WorkflowRepository } from '@main/repositories/workflow.repository';
+import { WorkflowExecutionRepository } from '@main/repositories/workflow-execution.repository';
 
 /**
  * Creates and configures the InversifyJS dependency injection container.
@@ -98,6 +105,8 @@ export function createContainer(): Container {
   container.bind<IMemoryRepository>(TYPES.MemoryRepository).to(MemoryRepository);
   container.bind<IAuditRepository>(TYPES.AuditRepository).to(AuditRepository);
   container.bind<IProjectRepository>(TYPES.ProjectRepository).to(ProjectRepository);
+  container.bind<IWorkflowRepository>(TYPES.WorkflowRepository).to(WorkflowRepository);
+  container.bind<IWorkflowExecutionRepository>(TYPES.WorkflowExecutionRepository).to(WorkflowExecutionRepository);
 
   // ============================================================================
   // Services
@@ -107,6 +116,8 @@ export function createContainer(): Container {
   container.bind<IServerManager>(TYPES.ServerManager).to(ServerManager);
   container.bind<IWorkspaceService>(TYPES.WorkspaceService).to(WorkspaceService);
   container.bind<IProjectService>(TYPES.ProjectService).to(ProjectService);
+  container.bind<IWorkflowExecutor>(TYPES.WorkflowExecutor).to(WorkflowExecutor);
+  container.bind<IWorkflowService>(TYPES.WorkflowService).to(WorkflowService);
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);

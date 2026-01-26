@@ -236,6 +236,52 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_projects_active ON projects(active);
         `,
       },
+      {
+        name: '003_workflows_table',
+        up: `
+          -- Workflows table for workflow definitions
+          CREATE TABLE IF NOT EXISTS workflows (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            project_id TEXT,
+            steps TEXT NOT NULL DEFAULT '[]',
+            trigger TEXT,
+            input_schema TEXT,
+            status TEXT NOT NULL DEFAULT 'draft',
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+            last_run_at INTEGER,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id);
+          CREATE INDEX IF NOT EXISTS idx_workflows_status ON workflows(status);
+
+          -- Workflow executions table for tracking runs
+          CREATE TABLE IF NOT EXISTS workflow_executions (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            workflow_name TEXT NOT NULL,
+            workflow_version INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'running',
+            input TEXT,
+            output TEXT,
+            error TEXT,
+            steps TEXT NOT NULL DEFAULT '[]',
+            current_step_id TEXT,
+            started_at INTEGER NOT NULL,
+            completed_at INTEGER,
+            triggered_by TEXT,
+            FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_executions_workflow ON workflow_executions(workflow_id);
+          CREATE INDEX IF NOT EXISTS idx_executions_status ON workflow_executions(status);
+          CREATE INDEX IF NOT EXISTS idx_executions_started ON workflow_executions(started_at);
+        `,
+      },
     ];
 
     // Apply pending migrations
