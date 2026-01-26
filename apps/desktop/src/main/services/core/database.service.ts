@@ -310,6 +310,37 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_hooks_enabled ON hooks(enabled);
         `,
       },
+      {
+        name: '005_skills_table',
+        up: `
+          -- Skills table for MCP server skill discovery
+          CREATE TABLE IF NOT EXISTS skills (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            path TEXT UNIQUE,
+            url TEXT,
+            source TEXT NOT NULL CHECK(source IN ('local', 'symlink', 'remote', 'builtin')),
+            status TEXT NOT NULL DEFAULT 'loading' CHECK(status IN ('available', 'unavailable', 'error', 'loading')),
+            server_config TEXT,
+            manifest TEXT,
+            project_id TEXT,
+            tags TEXT NOT NULL DEFAULT '[]',
+            enabled INTEGER NOT NULL DEFAULT 0,
+            error TEXT,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            last_checked_at INTEGER,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+          CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
+          CREATE INDEX IF NOT EXISTS idx_skills_status ON skills(status);
+          CREATE INDEX IF NOT EXISTS idx_skills_project ON skills(project_id);
+          CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled);
+        `,
+      },
     ];
 
     // Apply pending migrations

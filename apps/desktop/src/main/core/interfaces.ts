@@ -1197,6 +1197,134 @@ export interface IHookSandbox {
 }
 
 // ============================================================================
+// Skills System
+// ============================================================================
+
+/**
+ * Skill status indicating the health/availability of a skill.
+ */
+export type SkillStatus = 'available' | 'unavailable' | 'error' | 'loading';
+
+/**
+ * Skill source type for tracking where skills come from.
+ */
+export type SkillSource = 'local' | 'symlink' | 'remote' | 'builtin';
+
+/**
+ * A skill represents a discovered MCP server that can be connected.
+ */
+export interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+  /** Path to the skill (for local/symlink sources) */
+  path?: string;
+  /** Remote URL (for remote sources) */
+  url?: string;
+  /** Source type */
+  source: SkillSource;
+  /** Server configuration derived from skill */
+  serverConfig?: {
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+    transport: ServerTransport;
+  };
+  /** Metadata from skill manifest */
+  manifest?: SkillManifest;
+  /** Current status */
+  status: SkillStatus;
+  /** Associated project ID */
+  projectId?: string;
+  /** Tags for categorization */
+  tags: string[];
+  /** Whether skill is enabled */
+  enabled: boolean;
+  /** Error message if status is 'error' */
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  lastCheckedAt?: number;
+}
+
+/**
+ * Skill manifest schema (mcp-skill.json).
+ */
+export interface SkillManifest {
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  license?: string;
+  main?: string;
+  /** Command to run the skill */
+  command?: string;
+  /** Arguments for the command */
+  args?: string[];
+  /** Environment variables */
+  env?: Record<string, string>;
+  /** Transport type */
+  transport?: ServerTransport;
+  /** Required dependencies */
+  dependencies?: Record<string, string>;
+  /** Skill capabilities/tags */
+  capabilities?: string[];
+}
+
+export interface SkillCreateInput {
+  name: string;
+  description?: string;
+  path?: string;
+  url?: string;
+  source: SkillSource;
+  projectId?: string;
+  tags?: string[];
+}
+
+export interface ISkillsService {
+  /** Discover skills from a directory (including symlinks) */
+  discoverSkills(directory: string): Promise<Skill[]>;
+  /** Register a skill from a path */
+  registerSkill(input: SkillCreateInput): Promise<Skill>;
+  /** Get a skill by ID */
+  getSkill(skillId: string): Promise<Skill | null>;
+  /** Get all skills */
+  getAllSkills(): Promise<Skill[]>;
+  /** Get skills for a project */
+  getSkillsByProject(projectId: string): Promise<Skill[]>;
+  /** Update a skill */
+  updateSkill(skillId: string, updates: Partial<Skill>): Promise<Skill>;
+  /** Delete a skill */
+  deleteSkill(skillId: string): Promise<void>;
+  /** Enable a skill */
+  enableSkill(skillId: string): Promise<void>;
+  /** Disable a skill */
+  disableSkill(skillId: string): Promise<void>;
+  /** Create a symlink to a skill directory */
+  createSymlink(sourcePath: string, targetDir: string, name: string): Promise<string>;
+  /** Remove a skill symlink */
+  removeSymlink(symlinkPath: string): Promise<void>;
+  /** Refresh skill status and manifest */
+  refreshSkill(skillId: string): Promise<Skill>;
+  /** Convert a skill to a server configuration */
+  toServerConfig(skillId: string): Promise<Omit<MCPServer, 'id' | 'createdAt' | 'updatedAt' | 'status'>>;
+  /** Parse a skill manifest file */
+  parseManifest(manifestPath: string): Promise<SkillManifest | null>;
+}
+
+export interface ISkillRepository {
+  create(skill: Skill): Promise<Skill>;
+  findById(id: string): Promise<Skill | null>;
+  findByPath(path: string): Promise<Skill | null>;
+  findAll(): Promise<Skill[]>;
+  findByProjectId(projectId: string): Promise<Skill[]>;
+  findBySource(source: SkillSource): Promise<Skill[]>;
+  findEnabled(): Promise<Skill[]>;
+  update(skill: Skill): Promise<Skill>;
+  delete(id: string): Promise<void>;
+}
+
+// ============================================================================
 // Security Interfaces
 // ============================================================================
 

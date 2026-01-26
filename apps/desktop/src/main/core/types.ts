@@ -17,6 +17,7 @@ export const TYPES = {
   WorkflowExecutor: Symbol.for('WorkflowExecutor'),
   HookService: Symbol.for('HookService'),
   HookSandbox: Symbol.for('HookSandbox'),
+  SkillsService: Symbol.for('SkillsService'),
   PolicyEngine: Symbol.for('PolicyEngine'),
   ApprovalQueue: Symbol.for('ApprovalQueue'),
   RateLimiter: Symbol.for('RateLimiter'),
@@ -35,6 +36,7 @@ export const TYPES = {
   WorkflowRepository: Symbol.for('WorkflowRepository'),
   WorkflowExecutionRepository: Symbol.for('WorkflowExecutionRepository'),
   HookRepository: Symbol.for('HookRepository'),
+  SkillRepository: Symbol.for('SkillRepository'),
 
   // HTTP Layer
   HttpServer: Symbol.for('HttpServer'),
