@@ -5,12 +5,16 @@ export {
   AddServerDialog,
   ServerDetails,
   ServerSettingsModal,
+  ManualServerForm,
   type ServerCardProps,
   type ServerListProps,
   type AddServerDialogProps,
   type ServerDetailsProps,
   type ServerSettingsModalProps,
   type ServerFormData,
+  type ManualServerFormProps,
+  type TransportType,
+  type ManualServerFormData,
 } from './servers';
 
 // Dashboard features
