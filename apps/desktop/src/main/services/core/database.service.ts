@@ -282,6 +282,34 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_executions_started ON workflow_executions(started_at);
         `,
       },
+      {
+        name: '004_hooks_table',
+        up: `
+          -- Hooks table for custom JavaScript hooks
+          CREATE TABLE IF NOT EXISTS hooks (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            event TEXT NOT NULL,
+            project_id TEXT,
+            server_id TEXT,
+            code TEXT NOT NULL,
+            priority INTEGER NOT NULL DEFAULT 100,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            timeout INTEGER NOT NULL DEFAULT 5000,
+            can_modify INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_hooks_event ON hooks(event);
+          CREATE INDEX IF NOT EXISTS idx_hooks_project ON hooks(project_id);
+          CREATE INDEX IF NOT EXISTS idx_hooks_server ON hooks(server_id);
+          CREATE INDEX IF NOT EXISTS idx_hooks_enabled ON hooks(enabled);
+        `,
+      },
     ];
 
     // Apply pending migrations

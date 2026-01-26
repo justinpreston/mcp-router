@@ -18,6 +18,9 @@ import type {
   IWorkflowRepository,
   IWorkflowExecutionRepository,
   IWorkflowExecutor,
+  IHookService,
+  IHookRepository,
+  IHookSandbox,
   IPolicyEngine,
   IPolicyRepository,
   IApprovalQueue,
@@ -51,6 +54,7 @@ import { ServerManager } from '@main/services/server/server-manager.service';
 import { WorkspaceService } from '@main/services/workspace/workspace.service';
 import { ProjectService } from '@main/services/project/project.service';
 import { WorkflowService, WorkflowExecutor } from '@main/services/workflow';
+import { HookService, HookSandbox } from '@main/services/hook';
 import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
@@ -77,6 +81,7 @@ import { AuditRepository } from '@main/repositories/audit.repository';
 import { ProjectRepository } from '@main/repositories/project.repository';
 import { WorkflowRepository } from '@main/repositories/workflow.repository';
 import { WorkflowExecutionRepository } from '@main/repositories/workflow-execution.repository';
+import { HookRepository } from '@main/repositories/hook.repository';
 
 /**
  * Creates and configures the InversifyJS dependency injection container.
@@ -107,6 +112,7 @@ export function createContainer(): Container {
   container.bind<IProjectRepository>(TYPES.ProjectRepository).to(ProjectRepository);
   container.bind<IWorkflowRepository>(TYPES.WorkflowRepository).to(WorkflowRepository);
   container.bind<IWorkflowExecutionRepository>(TYPES.WorkflowExecutionRepository).to(WorkflowExecutionRepository);
+  container.bind<IHookRepository>(TYPES.HookRepository).to(HookRepository);
 
   // ============================================================================
   // Services
@@ -118,6 +124,8 @@ export function createContainer(): Container {
   container.bind<IProjectService>(TYPES.ProjectService).to(ProjectService);
   container.bind<IWorkflowExecutor>(TYPES.WorkflowExecutor).to(WorkflowExecutor);
   container.bind<IWorkflowService>(TYPES.WorkflowService).to(WorkflowService);
+  container.bind<IHookSandbox>(TYPES.HookSandbox).to(HookSandbox);
+  container.bind<IHookService>(TYPES.HookService).to(HookService);
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);

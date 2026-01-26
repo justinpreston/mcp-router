@@ -1052,6 +1052,151 @@ export interface WorkflowExecutionContext {
 }
 
 // ============================================================================
+// Hook System
+// ============================================================================
+
+/**
+ * Hook event types that can trigger custom hooks.
+ */
+export type HookEvent =
+  | 'server:before-start'
+  | 'server:after-start'
+  | 'server:before-stop'
+  | 'server:after-stop'
+  | 'tool:before-call'
+  | 'tool:after-call'
+  | 'approval:created'
+  | 'approval:resolved'
+  | 'workflow:before-execute'
+  | 'workflow:after-execute'
+  | 'workflow:step-complete';
+
+/**
+ * Hook definition entity.
+ */
+export interface Hook {
+  id: string;
+  name: string;
+  description?: string;
+  /** Event that triggers this hook */
+  event: HookEvent;
+  /** Project scope (optional, null = global) */
+  projectId?: string;
+  /** Server scope for server/tool events (optional) */
+  serverId?: string;
+  /** JavaScript code to execute */
+  code: string;
+  /** Priority (lower = runs first) */
+  priority: number;
+  /** Whether the hook is enabled */
+  enabled: boolean;
+  /** Timeout in milliseconds for execution */
+  timeout: number;
+  /** Whether hook can modify the event payload */
+  canModify: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface HookCreateInput {
+  name: string;
+  description?: string;
+  event: HookEvent;
+  projectId?: string;
+  serverId?: string;
+  code: string;
+  priority?: number;
+  timeout?: number;
+  canModify?: boolean;
+}
+
+/**
+ * Context passed to hook execution.
+ */
+export interface HookContext {
+  /** The triggering event */
+  event: HookEvent;
+  /** Event-specific payload data */
+  payload: Record<string, unknown>;
+  /** Metadata about the execution */
+  meta: {
+    hookId: string;
+    hookName: string;
+    timestamp: number;
+    projectId?: string;
+    serverId?: string;
+  };
+}
+
+/**
+ * Result from hook execution.
+ */
+export interface HookResult {
+  success: boolean;
+  /** Modified payload (if canModify=true and hook modifies it) */
+  modifiedPayload?: Record<string, unknown>;
+  /** Error message if failed */
+  error?: string;
+  /** Execution duration in milliseconds */
+  duration: number;
+  /** Console logs from hook execution */
+  logs: string[];
+}
+
+export interface IHookService {
+  /** Create a new hook */
+  createHook(input: HookCreateInput): Promise<Hook>;
+  /** Get a hook by ID */
+  getHook(hookId: string): Promise<Hook | null>;
+  /** Get all hooks */
+  getAllHooks(): Promise<Hook[]>;
+  /** Get hooks for a specific event */
+  getHooksForEvent(event: HookEvent, projectId?: string, serverId?: string): Promise<Hook[]>;
+  /** Update a hook */
+  updateHook(hookId: string, updates: Partial<Hook>): Promise<Hook>;
+  /** Delete a hook */
+  deleteHook(hookId: string): Promise<void>;
+  /** Enable a hook */
+  enableHook(hookId: string): Promise<void>;
+  /** Disable a hook */
+  disableHook(hookId: string): Promise<void>;
+  /** Execute all hooks for an event */
+  executeHooks(
+    event: HookEvent,
+    payload: Record<string, unknown>,
+    options?: { projectId?: string; serverId?: string }
+  ): Promise<HookResult[]>;
+  /** Test a hook with sample data */
+  testHook(hookId: string, payload: Record<string, unknown>): Promise<HookResult>;
+  /** Validate hook code syntax */
+  validateCode(code: string): { valid: boolean; error?: string };
+}
+
+export interface IHookRepository {
+  create(hook: Hook): Promise<Hook>;
+  findById(id: string): Promise<Hook | null>;
+  findAll(): Promise<Hook[]>;
+  findByEvent(event: HookEvent, projectId?: string, serverId?: string): Promise<Hook[]>;
+  findEnabled(event: HookEvent, projectId?: string, serverId?: string): Promise<Hook[]>;
+  update(hook: Hook): Promise<Hook>;
+  delete(id: string): Promise<void>;
+}
+
+/**
+ * Secure JavaScript sandbox for hook execution.
+ */
+export interface IHookSandbox {
+  /** Execute code in sandbox with context */
+  execute(
+    code: string,
+    context: HookContext,
+    options: { timeout: number; canModify: boolean }
+  ): Promise<HookResult>;
+  /** Validate code syntax without execution */
+  validate(code: string): { valid: boolean; error?: string };
+}
+
+// ============================================================================
 // Security Interfaces
 // ============================================================================
 
