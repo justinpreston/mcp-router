@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/main.tsx"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "**/*.d.ts",
+    "src/renderer/components/ui/**"
+  ],
+  "ignoreDependencies": [
+    "electron",
+    "electron-vite",
+    "@vitejs/plugin-react",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss",
+    "tailwindcss-animate",
+    "@electron-toolkit/utils"
+  ],
+  "ignoreBinaries": [
+    "electron-vite"
+  ],
+  "paths": {
+    "@/*": ["./src/*"],
+    "@main/*": ["./src/main/*"],
+    "@renderer/*": ["./src/renderer/*"],
+    "@preload/*": ["./src/preload/*"]
+  }
+}
