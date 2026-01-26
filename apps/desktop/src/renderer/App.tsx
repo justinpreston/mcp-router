@@ -5,6 +5,7 @@ import { Dashboard } from '@renderer/features/dashboard';
 import { PolicyList, AddPolicyDialog } from '@renderer/features/policies';
 import { ApprovalQueue } from '@renderer/features/approvals';
 import { SkillList } from '@renderer/features/skills';
+import { LogViewer } from '@renderer/features/logs';
 import { TooltipProvider } from '@renderer/components/ui';
 
 // Settings page - will be expanded later
@@ -31,6 +32,8 @@ export function App() {
         return 'Policies';
       case 'approvals':
         return 'Approvals';
+      case 'logs':
+        return 'Activity';
       case 'settings':
         return 'Settings';
       default:
@@ -65,6 +68,8 @@ export function App() {
         );
       case 'approvals':
         return <ApprovalQueue />;
+      case 'logs':
+        return <LogViewer />;
       case 'settings':
         return <SettingsPage />;
       default:
