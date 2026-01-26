@@ -55,10 +55,12 @@ export function PolicyList({ onPolicySelect }: PolicyListProps) {
 
   if (policies.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-        <p className="text-sm text-muted-foreground">
-          No policies configured. Click &quot;Add Policy&quot; to create one.
-        </p>
+      <div data-testid="policy-list">
+        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed" data-testid="empty-policy-list">
+          <p className="text-sm text-muted-foreground">
+            No policies configured. Click &quot;Add Policy&quot; to create one.
+          </p>
+        </div>
       </div>
     );
   }
@@ -67,7 +69,7 @@ export function PolicyList({ onPolicySelect }: PolicyListProps) {
   const sortedPolicies = [...policies].sort((a, b) => b.priority - a.priority);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="policy-list">
       {sortedPolicies.map((policy) => (
         <PolicyCard
           key={policy.id}

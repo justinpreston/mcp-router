@@ -101,7 +101,7 @@ export function AddServerDialog({ open, onOpenChange }: AddServerDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" data-testid="add-server-dialog">
         <DialogHeader>
           <DialogTitle>Add MCP Server</DialogTitle>
           <DialogDescription>
@@ -120,6 +120,7 @@ export function AddServerDialog({ open, onOpenChange }: AddServerDialogProps) {
                 placeholder="My MCP Server"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                data-testid="server-name-input"
               />
             </div>
 
@@ -173,6 +174,7 @@ export function AddServerDialog({ open, onOpenChange }: AddServerDialogProps) {
                     placeholder="npx, python, node, etc."
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
+                    data-testid="server-command-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -182,6 +184,7 @@ export function AddServerDialog({ open, onOpenChange }: AddServerDialogProps) {
                     placeholder="-m mcp_server --port 3000"
                     value={args}
                     onChange={(e) => setArgs(e.target.value)}
+                    data-testid="server-args-input"
                   />
                 </div>
               </>
@@ -212,10 +215,11 @@ export function AddServerDialog({ open, onOpenChange }: AddServerDialogProps) {
               variant="outline"
               onClick={handleClose}
               disabled={isSubmitting}
+              data-testid="cancel-button"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} data-testid="submit-button">
               {isSubmitting ? 'Adding...' : 'Add Server'}
             </Button>
           </DialogFooter>

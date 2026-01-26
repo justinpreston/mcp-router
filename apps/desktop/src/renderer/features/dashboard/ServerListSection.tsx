@@ -71,14 +71,16 @@ export function ServerListSection({
   // Empty state
   if (servers.length === 0) {
     return (
-      <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed" data-testid="empty-server-list">
-        <div className="text-center">
-          <p className="text-lg font-medium text-muted-foreground">
-            No servers found
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add a server to get started or adjust your filters.
-          </p>
+      <div data-testid="server-list">
+        <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed" data-testid="empty-server-list">
+          <div className="text-center">
+            <p className="text-lg font-medium text-muted-foreground">
+              No servers found
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add a server to get started or adjust your filters.
+            </p>
+          </div>
         </div>
       </div>
     );

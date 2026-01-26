@@ -95,7 +95,7 @@ export function AddPolicyDialog({ open, onOpenChange }: AddPolicyDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" data-testid="add-policy-dialog">
         <DialogHeader>
           <DialogTitle>Add Policy Rule</DialogTitle>
           <DialogDescription>
@@ -113,6 +113,7 @@ export function AddPolicyDialog({ open, onOpenChange }: AddPolicyDialogProps) {
                 placeholder="Deny dangerous tools"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                data-testid="policy-name-input"
               />
             </div>
 
@@ -177,6 +178,7 @@ export function AddPolicyDialog({ open, onOpenChange }: AddPolicyDialogProps) {
                 placeholder="dangerous-*, admin-*, *.delete"
                 value={pattern}
                 onChange={(e) => setPattern(e.target.value)}
+                data-testid="policy-pattern-input"
               />
               <p className="text-xs text-muted-foreground">
                 Use * for wildcards. Examples: dangerous-*, *.write, admin-*
@@ -186,7 +188,7 @@ export function AddPolicyDialog({ open, onOpenChange }: AddPolicyDialogProps) {
             {/* Action */}
             <div className="space-y-2">
               <Label>Action</Label>
-              <div className="flex gap-4">
+              <div className="flex gap-4" data-testid="policy-action-select">
                 {(['allow', 'deny', 'require_approval'] as const).map((a) => (
                   <label key={a} className="flex items-center gap-2">
                     <input
@@ -233,10 +235,11 @@ export function AddPolicyDialog({ open, onOpenChange }: AddPolicyDialogProps) {
               variant="outline"
               onClick={handleClose}
               disabled={isSubmitting}
+              data-testid="cancel-button"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} data-testid="submit-button">
               {isSubmitting ? 'Adding...' : 'Add Policy'}
             </Button>
           </DialogFooter>

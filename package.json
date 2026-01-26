@@ -22,6 +22,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.2",
     "@types/node": "^20.11.0",
     "prettier": "^3.2.4",
     "turbo": "^2.0.0",

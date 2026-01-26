@@ -16,7 +16,7 @@ export function MainLayout({
   onNavigate,
 }: MainLayoutProps) {
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background" data-testid="main-layout">
       {/* Sidebar */}
       <Sidebar activeItem={activeNav} onNavigate={onNavigate} />
 

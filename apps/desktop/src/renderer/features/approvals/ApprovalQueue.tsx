@@ -74,7 +74,7 @@ export function ApprovalQueue({ showResolved = false }: ApprovalQueueProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="approval-queue">
       {/* Header with filter */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export function ApprovalQueue({ showResolved = false }: ApprovalQueueProps) {
 
       {/* Approval List */}
       {sortedApprovals.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
+        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed" data-testid="empty-approval-queue">
           <p className="text-sm text-muted-foreground">
             {filterStatus === 'pending'
               ? 'No pending approvals'

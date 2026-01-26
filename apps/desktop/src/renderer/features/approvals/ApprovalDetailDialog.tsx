@@ -72,7 +72,7 @@ export function ApprovalDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px]" data-testid="approval-detail-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Approval Request
@@ -179,15 +179,16 @@ export function ApprovalDetailDialog({
                     variant="outline"
                     className="text-destructive hover:text-destructive"
                     onClick={() => setShowRejectInput(true)}
+                    data-testid="reject-button"
                   >
                     Reject
                   </Button>
-                  <Button onClick={handleApprove}>Approve</Button>
+                  <Button onClick={handleApprove} data-testid="approve-button">Approve</Button>
                 </>
               )}
             </>
           ) : (
-            <Button variant="outline" onClick={handleClose}>
+            <Button variant="outline" onClick={handleClose} data-testid="close-dialog-button">
               Close
             </Button>
           )}

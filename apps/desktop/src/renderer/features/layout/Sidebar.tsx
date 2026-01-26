@@ -17,12 +17,13 @@ interface NavButtonProps {
   onClick: () => void;
 }
 
-function NavButton({ item: _item, label, isActive, badge, onClick }: NavButtonProps) {
+function NavButton({ item, label, isActive, badge, onClick }: NavButtonProps) {
   return (
     <Button
       variant={isActive ? 'secondary' : 'ghost'}
       className={`w-full justify-start ${isActive ? 'bg-accent' : ''}`}
       onClick={onClick}
+      data-testid={`nav-${item}`}
     >
       <span className="flex-1 text-left">{label}</span>
       {badge !== undefined && badge > 0 && (
@@ -45,7 +46,7 @@ export function Sidebar({ activeItem, onNavigate }: SidebarProps) {
   );
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r bg-card">
+    <aside className="flex h-full w-56 flex-col border-r bg-card" data-testid="sidebar">
       {/* Logo */}
       <div className="flex h-14 items-center border-b px-4">
         <h1 className="text-lg font-semibold">MCP Router</h1>

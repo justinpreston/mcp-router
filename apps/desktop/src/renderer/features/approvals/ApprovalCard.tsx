@@ -76,11 +76,12 @@ export function ApprovalCard({
         approval.status !== 'pending' ? 'opacity-60' : ''
       }`}
       onClick={handleSelect}
+      data-testid="approval-card"
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm font-medium">
+            <span className="font-mono text-sm font-medium" data-testid="approval-tool-name">
               {approval.toolName}
             </span>
             <Badge variant={getStatusVariant(approval.status)}>
