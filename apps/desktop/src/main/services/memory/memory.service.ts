@@ -200,6 +200,14 @@ export class MemoryService implements IMemoryService {
     return this.memoryRepo.findAll(options);
   }
 
+  /**
+   * Get all memories with cursor-based pagination.
+   * More efficient than offset pagination for large datasets.
+   */
+  async getAllPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>> {
+    return this.memoryRepo.findPaginated(options);
+  }
+
   // ============================================================================
   // Semantic Search Methods (AI Hub feature)
   // ============================================================================
