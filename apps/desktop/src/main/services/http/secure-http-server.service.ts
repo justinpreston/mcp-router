@@ -5,11 +5,18 @@ import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import { createServer, Server } from 'http';
 import { TYPES } from '@main/core/types';
-import type { IHttpServer, IConfig, ILogger, ITokenValidator } from '@main/core/interfaces';
+import type {
+  IHttpServer,
+  IConfig,
+  ILogger,
+  ITokenValidator,
+  IProjectService,
+} from '@main/core/interfaces';
 
 /**
  * Security-hardened Express HTTP server.
  * Implements CRITICAL-1 (CORS), HIGH-4 (rate limiting), LOW-2 (security headers) fixes.
+ * Supports project-scoped routing via X-MCPR-Project header.
  */
 @injectable()
 export class SecureHttpServer implements IHttpServer {
@@ -20,7 +27,8 @@ export class SecureHttpServer implements IHttpServer {
   constructor(
     @inject(TYPES.Config) private config: IConfig,
     @inject(TYPES.Logger) private logger: ILogger,
-    @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator
+    @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator,
+    @inject(TYPES.ProjectService) private projectService: IProjectService
   ) {
     this.app = express();
     this.configureMiddleware();
@@ -98,8 +106,8 @@ export class SecureHttpServer implements IHttpServer {
         },
         credentials: true,
         methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-        exposedHeaders: ['X-Request-ID', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-MCPR-Project'],
+        exposedHeaders: ['X-Request-ID', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'X-MCPR-Project'],
         maxAge: 86400, // 24 hours
       })
     );
@@ -214,15 +222,101 @@ export class SecureHttpServer implements IHttpServer {
       }
     };
 
-    // MCP routes (protected)
-    // Use type assertion for handlers that receive AuthenticatedRequest after middleware validation
-    this.app.post('/mcp/tools/call', requireAuth, this.handleToolCall.bind(this) as unknown as express.RequestHandler);
-    this.app.get('/mcp/tools/list', requireAuth, this.handleToolList.bind(this) as unknown as express.RequestHandler);
-    this.app.get('/mcp/resources/list', requireAuth, this.handleResourceList.bind(this) as unknown as express.RequestHandler);
-    this.app.get('/mcp/resources/read', requireAuth, this.handleResourceRead.bind(this) as unknown as express.RequestHandler);
+    // Project context middleware - extracts and validates X-MCPR-Project header
+    const extractProjectContext = async (req: Request, res: Response, next: NextFunction) => {
+      const projectHeader = req.headers['x-mcpr-project'] as string | undefined;
+      const authReq = req as AuthenticatedRequest;
 
-    // SSE endpoint for streaming responses
-    this.app.get('/mcp/sse', requireAuth, this.handleSseConnection.bind(this) as unknown as express.RequestHandler);
+      if (!projectHeader) {
+        // No project specified - will use default/global context
+        authReq.projectId = undefined;
+        authReq.projectSlug = undefined;
+        return next();
+      }
+
+      try {
+        // Try to find project by ID first
+        let project = await this.projectService.getProject(projectHeader);
+
+        // If not found by ID, try by slug
+        if (!project) {
+          project = await this.projectService.getProjectBySlug(projectHeader);
+        }
+
+        if (!project) {
+          this.logger.warn('Project not found', {
+            projectHeader,
+            clientId: authReq.token?.clientId,
+          });
+          return res.status(404).json({
+            error: 'Project not found',
+            code: 'PROJECT_NOT_FOUND',
+            project: projectHeader,
+          });
+        }
+
+        // Check if the project is active
+        if (!project.active) {
+          this.logger.warn('Access to inactive project denied', {
+            projectId: project.id,
+            projectSlug: project.slug,
+            active: project.active,
+            clientId: authReq.token?.clientId,
+          });
+          return res.status(403).json({
+            error: 'Project is not active',
+            code: 'PROJECT_INACTIVE',
+          });
+        }
+
+        // Attach project context to request
+        authReq.projectId = project.id;
+        authReq.projectSlug = project.slug;
+
+        // Echo back the resolved project ID in response header
+        res.setHeader('X-MCPR-Project', project.id);
+
+        this.logger.debug('Project context resolved', {
+          projectId: project.id,
+          projectSlug: project.slug,
+          clientId: authReq.token?.clientId,
+        });
+
+        next();
+      } catch (error) {
+        this.logger.error('Project context extraction error', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          projectHeader,
+        });
+        return res.status(500).json({ error: 'Failed to resolve project context' });
+      }
+    };
+
+    // MCP routes (protected, with project context)
+    // Use type assertion for handlers that receive AuthenticatedRequest after middleware validation
+    this.app.post('/mcp/tools/call', requireAuth, extractProjectContext, this.handleToolCall.bind(this) as unknown as express.RequestHandler);
+    this.app.get('/mcp/tools/list', requireAuth, extractProjectContext, this.handleToolList.bind(this) as unknown as express.RequestHandler);
+    this.app.get('/mcp/resources/list', requireAuth, extractProjectContext, this.handleResourceList.bind(this) as unknown as express.RequestHandler);
+    this.app.get('/mcp/resources/read', requireAuth, extractProjectContext, this.handleResourceRead.bind(this) as unknown as express.RequestHandler);
+
+    // SSE endpoint for streaming responses (with project context)
+    this.app.get('/mcp/sse', requireAuth, extractProjectContext, this.handleSseConnection.bind(this) as unknown as express.RequestHandler);
+
+    // Project info endpoint - returns the resolved project for the request
+    this.app.get('/mcp/project', requireAuth, extractProjectContext, (req: Request, res: Response) => {
+      const authReq = req as AuthenticatedRequest;
+      if (!authReq.projectId) {
+        return res.json({
+          projectId: null,
+          projectSlug: null,
+          message: 'No project context - using global scope',
+        });
+      }
+      res.json({
+        projectId: authReq.projectId,
+        projectSlug: authReq.projectSlug,
+      });
+    });
   }
 
   /**
@@ -274,24 +368,44 @@ export class SecureHttpServer implements IHttpServer {
   // Route Handlers (placeholder implementations)
   // ============================================================================
 
-  private async handleToolCall(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  private async handleToolCall(req: AuthenticatedRequest, res: Response): Promise<void> {
     // Will be implemented with McpAggregator integration
-    res.status(501).json({ error: 'Not implemented' });
+    // Use req.projectId to filter tools to project-scoped servers
+    const projectContext = req.projectId ? { projectId: req.projectId } : {};
+    res.status(501).json({
+      error: 'Not implemented',
+      ...projectContext,
+    });
   }
 
-  private async handleToolList(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  private async handleToolList(req: AuthenticatedRequest, res: Response): Promise<void> {
     // Will be implemented with McpAggregator integration
-    res.status(501).json({ error: 'Not implemented' });
+    // Use req.projectId to filter tools to project-scoped servers
+    const projectContext = req.projectId ? { projectId: req.projectId } : {};
+    res.status(501).json({
+      error: 'Not implemented',
+      ...projectContext,
+    });
   }
 
-  private async handleResourceList(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  private async handleResourceList(req: AuthenticatedRequest, res: Response): Promise<void> {
     // Will be implemented with McpAggregator integration
-    res.status(501).json({ error: 'Not implemented' });
+    // Use req.projectId to filter resources to project-scoped servers
+    const projectContext = req.projectId ? { projectId: req.projectId } : {};
+    res.status(501).json({
+      error: 'Not implemented',
+      ...projectContext,
+    });
   }
 
-  private async handleResourceRead(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  private async handleResourceRead(req: AuthenticatedRequest, res: Response): Promise<void> {
     // Will be implemented with McpAggregator integration
-    res.status(501).json({ error: 'Not implemented' });
+    // Use req.projectId to filter resources to project-scoped servers
+    const projectContext = req.projectId ? { projectId: req.projectId } : {};
+    res.status(501).json({
+      error: 'Not implemented',
+      ...projectContext,
+    });
   }
 
   private handleSseConnection(req: AuthenticatedRequest, res: Response): void {
@@ -301,8 +415,12 @@ export class SecureHttpServer implements IHttpServer {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+    // Send initial connection message with project context
+    res.write(`data: ${JSON.stringify({
+      type: 'connected',
+      projectId: req.projectId || null,
+      projectSlug: req.projectSlug || null,
+    })}\n\n`);
 
     // Heartbeat to keep connection alive
     const heartbeat = setInterval(() => {
@@ -314,6 +432,7 @@ export class SecureHttpServer implements IHttpServer {
       clearInterval(heartbeat);
       this.logger.debug('SSE connection closed', {
         clientId: req.token.clientId,
+        projectId: req.projectId,
       });
     });
   }
@@ -379,7 +498,7 @@ export class SecureHttpServer implements IHttpServer {
 }
 
 /**
- * Extended Request type with authenticated token.
+ * Extended Request type with authenticated token and project context.
  */
 interface AuthenticatedRequest extends Request {
   token: {
@@ -388,4 +507,8 @@ interface AuthenticatedRequest extends Request {
     scopes: string[];
     serverAccess: Record<string, boolean>;
   };
+  /** Project ID from X-MCPR-Project header (resolved) */
+  projectId?: string;
+  /** Project slug from X-MCPR-Project header (resolved) */
+  projectSlug?: string;
 }
