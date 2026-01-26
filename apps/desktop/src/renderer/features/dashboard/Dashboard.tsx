@@ -58,7 +58,7 @@ export function Dashboard({ onServerSelect }: DashboardProps) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-testid="dashboard">
       {/* Quick Actions Bar */}
       <QuickActions
         stats={serverStats}

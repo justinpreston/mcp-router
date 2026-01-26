@@ -73,12 +73,13 @@ export function ServerCard({
         isSelected ? 'ring-2 ring-primary' : ''
       }`}
       onClick={handleSelect}
+      data-testid="server-card"
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{server.name}</span>
-            <Badge variant={getStatusVariant(server.status)}>
+            <span className="font-medium" data-testid="server-name">{server.name}</span>
+            <Badge variant={getStatusVariant(server.status)} data-testid="server-status">
               {server.status}
             </Badge>
           </div>
@@ -98,11 +99,11 @@ export function ServerCard({
           </div>
           <div className="flex gap-2">
             {server.status === 'stopped' || server.status === 'error' ? (
-              <Button size="sm" variant="outline" onClick={handleStart}>
+              <Button size="sm" variant="outline" onClick={handleStart} data-testid="start-server-button">
                 Start
               </Button>
             ) : server.status === 'running' ? (
-              <Button size="sm" variant="outline" onClick={handleStop}>
+              <Button size="sm" variant="outline" onClick={handleStop} data-testid="stop-server-button">
                 Stop
               </Button>
             ) : (
@@ -115,6 +116,7 @@ export function ServerCard({
               variant="ghost"
               className="text-destructive hover:text-destructive"
               onClick={handleDelete}
+              data-testid="delete-server-button"
             >
               Delete
             </Button>

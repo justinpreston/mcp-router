@@ -20,9 +20,9 @@ export function QuickActions({
   onRefresh,
 }: QuickActionsProps) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" data-testid="quick-actions">
       {/* Stats Cards */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3" data-testid="server-stats">
         <StatCard
           icon={<Server className="h-4 w-4" />}
           label="Total"
@@ -45,11 +45,11 @@ export function QuickActions({
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onRefresh}>
+        <Button variant="outline" size="sm" onClick={onRefresh} data-testid="refresh-button">
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
-        <Button size="sm" onClick={onAddServer}>
+        <Button size="sm" onClick={onAddServer} data-testid="add-server-button">
           <Plus className="mr-2 h-4 w-4" />
           Add Server
         </Button>

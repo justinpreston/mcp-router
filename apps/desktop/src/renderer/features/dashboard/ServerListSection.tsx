@@ -71,7 +71,7 @@ export function ServerListSection({
   // Empty state
   if (servers.length === 0) {
     return (
-      <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed">
+      <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed" data-testid="empty-server-list">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
             No servers found
@@ -85,7 +85,7 @@ export function ServerListSection({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="server-list">
       {servers.map((server) => (
         <ServerCard
           key={server.id}
