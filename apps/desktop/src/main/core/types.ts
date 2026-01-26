@@ -61,6 +61,7 @@ export const TYPES = {
 
   // System Integration
   TrayService: Symbol.for('TrayService'),
+  AutoUpdater: Symbol.for('AutoUpdater'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;

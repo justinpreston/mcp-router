@@ -81,6 +81,7 @@ import { DeepLinkHandler } from '@main/security/deep-link-handler';
 
 // System Integration
 import { TrayService } from '@main/services/tray/tray.service';
+import { AutoUpdaterService, type IAutoUpdater } from '@main/services/updater';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -175,6 +176,7 @@ export function createContainer(): Container {
   // System Integration
   // ============================================================================
   container.bind<ITrayService>(TYPES.TrayService).to(TrayService);
+  container.bind<IAutoUpdater>(TYPES.AutoUpdater).to(AutoUpdaterService);
 
   return container;
 }

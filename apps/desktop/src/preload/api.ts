@@ -85,6 +85,16 @@ export interface ElectronAPI {
     refresh: () => Promise<void>;
   };
 
+  // Auto-updater
+  updater: {
+    check: () => Promise<UpdateCheckResultInfo>;
+    download: () => Promise<{ success: boolean; files: string[] }>;
+    install: () => Promise<{ success: boolean }>;
+    getState: () => Promise<UpdateStateInfo>;
+    getConfig: () => Promise<UpdateConfigInfo>;
+    setConfig: (config: Partial<UpdateConfigInfo>) => Promise<UpdateConfigInfo>;
+  };
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
   once: (channel: string, callback: (...args: unknown[]) => void) => void;
@@ -255,4 +265,45 @@ export interface CatalogToolInfo {
   lastUsedAt?: number;
   usageCount: number;
   avgDuration?: number;
+}
+
+// Auto-updater types
+export type UpdateStatusInfo = 
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+export interface UpdateStateInfo {
+  status: UpdateStatusInfo;
+  info?: {
+    version?: string;
+    releaseDate?: string;
+    releaseNotes?: string;
+  };
+  progress?: {
+    percent: number;
+    bytesPerSecond: number;
+    transferred: number;
+    total: number;
+  };
+  error?: string;
+}
+
+export interface UpdateConfigInfo {
+  autoCheck: boolean;
+  checkInterval: number;
+  autoDownload: boolean;
+  autoInstallOnAppQuit: boolean;
+  allowPrerelease: boolean;
+}
+
+export interface UpdateCheckResultInfo {
+  updateAvailable: boolean;
+  version?: string;
+  releaseDate?: string;
+  releaseNotes?: string | string[] | null;
 }

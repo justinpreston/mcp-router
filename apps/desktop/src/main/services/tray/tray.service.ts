@@ -3,6 +3,7 @@ import { Tray, Menu, nativeImage, app, BrowserWindow, Notification as ElectronNo
 import { join } from 'path';
 import { TYPES } from '@main/core/types';
 import type { ILogger, IServerManager, ITrayService, MCPServer } from '@main/core/interfaces';
+import type { IAutoUpdater, UpdateState } from '@main/services/updater';
 import { is } from '@electron-toolkit/utils';
 
 /**
@@ -20,10 +21,12 @@ export class TrayService implements ITrayService {
   private status: TrayStatus = 'idle';
   private contextMenu: Menu | null = null;
   private updateInterval: NodeJS.Timeout | null = null;
+  private updateState: UpdateState = { status: 'idle' };
 
   constructor(
     @inject(TYPES.Logger) private logger: ILogger,
-    @inject(TYPES.ServerManager) private serverManager: IServerManager
+    @inject(TYPES.ServerManager) private serverManager: IServerManager,
+    @inject(TYPES.AutoUpdater) private autoUpdater: IAutoUpdater
   ) {}
 
   /**
@@ -57,6 +60,9 @@ export class TrayService implements ITrayService {
 
       // Set up auto-refresh for server status
       this.startStatusUpdates();
+
+      // Subscribe to auto-updater state changes
+      this.subscribeToUpdates();
 
       this.logger.info('System tray initialized');
     } catch (error) {
@@ -277,10 +283,24 @@ export class TrayService implements ITrayService {
           click: () => this.openPreferences(),
           accelerator: 'CmdOrCtrl+,',
         },
-        {
-          label: 'Check for Updates...',
-          click: () => this.checkForUpdates(),
-        },
+        ...(this.updateState.status === 'downloaded'
+          ? [
+              {
+                label: '🔄 Restart to Update',
+                click: () => this.autoUpdater.quitAndInstall(),
+              },
+            ]
+          : [
+              {
+                label: this.updateState.status === 'checking'
+                  ? 'Checking for Updates...'
+                  : this.updateState.status === 'downloading'
+                  ? `Downloading Update (${Math.round(this.updateState.progress?.percent || 0)}%)`
+                  : 'Check for Updates...',
+                click: () => this.checkForUpdates(),
+                enabled: this.updateState.status !== 'checking' && this.updateState.status !== 'downloading',
+              },
+            ]),
         { type: 'separator' },
         {
           label: 'Quit MCP Router',
@@ -524,9 +544,61 @@ export class TrayService implements ITrayService {
   /**
    * Check for updates.
    */
-  private checkForUpdates(): void {
-    // TODO: Implement auto-updater integration
-    this.showNotification('MCP Router', 'You have the latest version');
+  private async checkForUpdates(): Promise<void> {
+    try {
+      this.showNotification('MCP Router', 'Checking for updates...');
+      const updateInfo = await this.autoUpdater.checkForUpdates();
+      
+      if (updateInfo) {
+        const version = updateInfo.updateInfo?.version || 'new';
+        this.showNotification(
+          'Update Available',
+          `Version ${version} is available. Click to download.`
+        );
+      } else {
+        this.showNotification('MCP Router', 'You have the latest version');
+      }
+    } catch (error) {
+      this.logger.error('Failed to check for updates', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      this.showNotification('Update Error', 'Failed to check for updates');
+    }
+  }
+
+  /**
+   * Subscribe to auto-updater state changes.
+   */
+  subscribeToUpdates(): void {
+    this.autoUpdater.onStateChange((state) => {
+      this.updateState = state;
+      
+      switch (state.status) {
+        case 'available':
+          this.showNotification(
+            'Update Available',
+            `Version ${state.info?.version || 'unknown'} is ready to download`
+          );
+          break;
+        case 'downloading':
+          // Optionally show download progress
+          break;
+        case 'downloaded':
+          this.showNotification(
+            'Update Ready',
+            'A new version has been downloaded. Restart to install.'
+          );
+          // Update menu to show "Restart to Update" option
+          this.updateContextMenu();
+          break;
+        case 'error':
+          this.showNotification(
+            'Update Error',
+            state.error?.message || 'Failed to update'
+          );
+          break;
+      }
+    });
   }
 }
 

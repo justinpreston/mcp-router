@@ -99,6 +99,16 @@ const electronAPI: ElectronAPI = {
     refresh: () => ipcRenderer.invoke('catalog:refresh'),
   },
 
+  // Auto-updater
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    getState: () => ipcRenderer.invoke('updater:state'),
+    getConfig: () => ipcRenderer.invoke('updater:config'),
+    setConfig: (config: unknown) => ipcRenderer.invoke('updater:set-config', config),
+  },
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     const validChannels = [
@@ -110,6 +120,7 @@ const electronAPI: ElectronAPI = {
       'workspace:updated',
       'memory:stored',
       'catalog:refreshed',
+      'updater:state-changed',
     ];
 
     if (validChannels.includes(channel)) {
@@ -138,6 +149,7 @@ const electronAPI: ElectronAPI = {
       'workspace:updated',
       'memory:stored',
       'catalog:refreshed',
+      'updater:state-changed',
     ];
 
     if (validChannels.includes(channel)) {
