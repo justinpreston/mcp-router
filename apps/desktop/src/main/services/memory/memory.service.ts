@@ -17,6 +17,8 @@ import type {
   MemoryExportFormat,
   MemoryImportResult,
   MemoryType,
+  PaginationOptions,
+  PaginatedResponse,
 } from '@main/core/interfaces';
 import type { IEmbeddingProvider } from './embedding.provider';
 
@@ -196,6 +198,14 @@ export class MemoryService implements IMemoryService {
 
   async getAll(options?: { limit?: number; offset?: number }): Promise<Memory[]> {
     return this.memoryRepo.findAll(options);
+  }
+
+  /**
+   * Get all memories with cursor-based pagination.
+   * More efficient than offset pagination for large datasets.
+   */
+  async getAllPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>> {
+    return this.memoryRepo.findPaginated(options);
   }
 
   // ============================================================================

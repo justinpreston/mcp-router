@@ -37,6 +37,39 @@ export interface ILogger {
 }
 
 // ============================================================================
+// Pagination
+// ============================================================================
+
+/**
+ * Cursor-based pagination options.
+ * More efficient than offset-based pagination for large datasets.
+ */
+export interface PaginationOptions {
+  /** Cursor from previous page's nextCursor */
+  cursor?: string;
+  /** Max items per page (default: 50) */
+  limit?: number;
+  /** Field to order by (default: createdAt) */
+  orderBy?: string;
+  /** Sort direction (default: desc) */
+  orderDir?: 'asc' | 'desc';
+}
+
+/**
+ * Paginated response with cursor for next page.
+ */
+export interface PaginatedResponse<T> {
+  /** Items for this page */
+  items: T[];
+  /** Cursor to fetch next page (undefined if no more pages) */
+  nextCursor?: string;
+  /** Whether more items exist after this page */
+  hasMore: boolean;
+  /** Total count (optional, can be expensive for large tables) */
+  totalCount?: number;
+}
+
+// ============================================================================
 // Token & Authentication
 // ============================================================================
 
@@ -481,7 +514,10 @@ export interface IMemoryService {
   searchByTags(tags: string[], options?: MemorySearchOptions): Promise<Memory[]>;
   update(memoryId: string, updates: Partial<MemoryInput>): Promise<Memory>;
   delete(memoryId: string): Promise<void>;
+  /** @deprecated Use getAllPaginated for better performance with large datasets */
   getAll(options?: { limit?: number; offset?: number }): Promise<Memory[]>;
+  /** Cursor-based pagination for efficient large dataset access */
+  getAllPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>>;
   
   // Semantic search (AI Hub feature)
   searchSemantic(options: SemanticSearchOptions): Promise<MemorySearchResult[]>;
@@ -510,7 +546,10 @@ export interface IMemoryRepository {
   findByHash(contentHash: string): Promise<Memory | null>;
   findByTags(tags: string[]): Promise<Memory[]>;
   findByTypes(types: MemoryType[]): Promise<Memory[]>;
+  /** @deprecated Use findPaginated for better performance with large datasets */
   findAll(options?: { limit?: number; offset?: number }): Promise<Memory[]>;
+  /** Cursor-based pagination for efficient large dataset access */
+  findPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>>;
   update(memory: Memory): Promise<Memory>;
   delete(id: string): Promise<void>;
   incrementAccessCount(id: string): Promise<Memory>;
@@ -519,6 +558,7 @@ export interface IMemoryRepository {
   renameTag(oldTag: string, newTag: string): Promise<number>;
   deleteTag(tag: string): Promise<number>;
   getAllTags(): Promise<{ tag: string; count: number }[]>;
+  count(): Promise<number>;
 }
 
 // ============================================================================
@@ -551,17 +591,26 @@ export interface AuditEvent {
   timestamp: number;
 }
 
+export interface AuditQueryOptions {
+  type?: AuditEventType;
+  clientId?: string;
+  serverId?: string;
+  startTime?: number;
+  endTime?: number;
+  /** @deprecated Use cursor for better performance */
+  limit?: number;
+  /** @deprecated Use cursor for better performance */
+  offset?: number;
+}
+
 export interface IAuditService {
   log(event: Omit<AuditEvent, 'id' | 'timestamp'>): Promise<void>;
-  query(options: {
-    type?: AuditEventType;
-    clientId?: string;
-    serverId?: string;
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-    offset?: number;
-  }): Promise<AuditEvent[]>;
+  /** @deprecated Use queryPaginated for better performance with large datasets */
+  query(options: AuditQueryOptions): Promise<AuditEvent[]>;
+  /** Cursor-based pagination for audit event queries */
+  queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>>;
   getStats(options?: { startTime?: number; endTime?: number }): Promise<{
     totalEvents: number;
     byType: Record<string, number>;
@@ -573,15 +622,12 @@ export interface IAuditService {
 export interface IAuditRepository {
   create(event: AuditEvent): Promise<AuditEvent>;
   findById(id: string): Promise<AuditEvent | null>;
-  query(options: {
-    type?: AuditEventType;
-    clientId?: string;
-    serverId?: string;
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-    offset?: number;
-  }): Promise<AuditEvent[]>;
+  /** @deprecated Use queryPaginated for better performance */
+  query(options: AuditQueryOptions): Promise<AuditEvent[]>;
+  /** Cursor-based pagination for efficient large dataset queries */
+  queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>>;
   count(options?: {
     type?: AuditEventType;
     startTime?: number;

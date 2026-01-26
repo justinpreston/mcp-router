@@ -1,6 +1,13 @@
 import { injectable, inject } from 'inversify';
 import { TYPES } from '@main/core/types';
-import type { IMemoryRepository, IDatabase, Memory, MemoryType } from '@main/core/interfaces';
+import type { 
+  IMemoryRepository, 
+  IDatabase, 
+  Memory, 
+  MemoryType,
+  PaginationOptions,
+  PaginatedResponse
+} from '@main/core/interfaces';
 
 /**
  * Memory repository for SQLite persistence.
@@ -92,6 +99,81 @@ export class MemoryRepository implements IMemoryRepository {
 
     const rows = stmt.all(limit, offset) as MemoryRow[];
     return rows.map(row => this.mapRowToMemory(row));
+  }
+
+  /**
+   * Cursor-based pagination for efficient large dataset access.
+   * Uses created_at timestamp as the cursor.
+   */
+  async findPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>> {
+    const limit = options?.limit ?? 50;
+    const orderDir = options?.orderDir ?? 'desc';
+    
+    // Parse cursor (timestamp-based)
+    const cursor = options?.cursor ? parseInt(options.cursor, 10) : undefined;
+    
+    // Build query based on cursor and direction
+    let sql: string;
+    const params: (number | string)[] = [];
+    
+    if (cursor) {
+      if (orderDir === 'desc') {
+        sql = `
+          SELECT * FROM memories
+          WHERE created_at < ?
+          ORDER BY created_at DESC
+          LIMIT ?
+        `;
+        params.push(cursor, limit + 1);
+      } else {
+        sql = `
+          SELECT * FROM memories
+          WHERE created_at > ?
+          ORDER BY created_at ASC
+          LIMIT ?
+        `;
+        params.push(cursor, limit + 1);
+      }
+    } else {
+      sql = `
+        SELECT * FROM memories
+        ORDER BY created_at ${orderDir === 'desc' ? 'DESC' : 'ASC'}
+        LIMIT ?
+      `;
+      params.push(limit + 1);
+    }
+    
+    const stmt = this.database.db.prepare(sql);
+    const rows = stmt.all(...params) as MemoryRow[];
+    
+    // Check if there are more items
+    const hasMore = rows.length > limit;
+    if (hasMore) {
+      rows.pop(); // Remove the extra item we fetched to check for more
+    }
+    
+    const items = rows.map(row => this.mapRowToMemory(row));
+    
+    // Generate next cursor from last item
+    const lastItem = items[items.length - 1];
+    const nextCursor = hasMore && lastItem
+      ? lastItem.createdAt.toString()
+      : undefined;
+    
+    return {
+      items,
+      nextCursor,
+      hasMore,
+    };
+  }
+
+  /**
+   * Count total memories.
+   */
+  async count(): Promise<number> {
+    const stmt = this.database.db.prepare('SELECT COUNT(*) as count FROM memories');
+    const result = stmt.get() as { count: number };
+    return result.count;
   }
 
   async update(memory: Memory): Promise<Memory> {
