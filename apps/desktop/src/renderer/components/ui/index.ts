@@ -21,3 +21,42 @@ export {
   DialogTitle,
   DialogDescription,
 } from './dialog';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+} from './select';
+export { Textarea, type TextareaProps } from './textarea';
+export { ScrollArea, ScrollBar } from './scroll-area';
+export { Separator } from './separator';
+export { Switch } from './switch';
+export {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from './tooltip';
+export { Skeleton } from './skeleton';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuGroup,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuRadioGroup,
+} from './dropdown-menu';
