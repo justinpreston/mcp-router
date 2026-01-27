@@ -72,6 +72,12 @@ export const TYPES = {
 
   // Built-in Tools (AI Hub Feature Parity)
   BuiltinToolsService: Symbol.for('BuiltinToolsService'),
+
+  // Advanced Memory (State-of-the-Art AI Agent Memory)
+  AdvancedMemoryService: Symbol.for('AdvancedMemoryService'),
+  EpisodeRepository: Symbol.for('EpisodeRepository'),
+  EntityRepository: Symbol.for('EntityRepository'),
+  ReflectionRepository: Symbol.for('ReflectionRepository'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;

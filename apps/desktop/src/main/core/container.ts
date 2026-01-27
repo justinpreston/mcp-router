@@ -92,6 +92,13 @@ import { ClientSyncService } from '@main/services/sync';
 import { BuiltinToolsService } from '@main/services/mcp/builtin-tools.service';
 import type { IBuiltinToolsService } from './interfaces';
 
+// Advanced Memory (State-of-the-Art AI Agent Memory)
+import { AdvancedMemoryService } from '@main/services/memory/advanced-memory.service';
+import type { IAdvancedMemoryService } from './advanced-memory.types';
+import { EpisodeRepository, type IEpisodeRepository } from '@main/repositories/episode.repository';
+import { EntityRepository, type IEntityRepository } from '@main/repositories/entity.repository';
+import { ReflectionRepository, type IReflectionRepository } from '@main/repositories/reflection.repository';
+
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
 import { ServerRepository } from '@main/repositories/server.repository';
@@ -200,6 +207,14 @@ export function createContainer(): Container {
   // Built-in MCP Tools (AI Hub Feature Parity)
   // ============================================================================
   container.bind<IBuiltinToolsService>(TYPES.BuiltinToolsService).to(BuiltinToolsService);
+
+  // ============================================================================
+  // Advanced Memory System (State-of-the-Art AI Agent Memory)
+  // ============================================================================
+  container.bind<IEpisodeRepository>(TYPES.EpisodeRepository).to(EpisodeRepository);
+  container.bind<IEntityRepository>(TYPES.EntityRepository).to(EntityRepository);
+  container.bind<IReflectionRepository>(TYPES.ReflectionRepository).to(ReflectionRepository);
+  container.bind<IAdvancedMemoryService>(TYPES.AdvancedMemoryService).to(AdvancedMemoryService);
 
   return container;
 }

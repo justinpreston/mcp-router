@@ -352,6 +352,200 @@ export class SqliteDatabase implements IDatabase {
           CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
         `,
       },
+      {
+        name: '006_advanced_memory_system',
+        up: `
+          -- ============================================================
+          -- Advanced Memory System Migration
+          -- Implements: MemGPT, Generative Agents, RAPTOR, GraphRAG patterns
+          -- ============================================================
+
+          -- Episodes table (Episodic Memory - Generative Agents pattern)
+          CREATE TABLE IF NOT EXISTS episodes (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            summary TEXT,
+            session_id TEXT,
+            memory_ids TEXT NOT NULL DEFAULT '[]',
+            entities TEXT NOT NULL DEFAULT '[]',
+            topics TEXT NOT NULL DEFAULT '[]',
+            sentiment TEXT CHECK(sentiment IN ('positive', 'negative', 'neutral', 'mixed')),
+            started_at INTEGER NOT NULL,
+            ended_at INTEGER,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            parent_episode_id TEXT,
+            importance REAL NOT NULL DEFAULT 0.5,
+            embedding BLOB,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            FOREIGN KEY (parent_episode_id) REFERENCES episodes(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_episodes_session ON episodes(session_id);
+          CREATE INDEX IF NOT EXISTS idx_episodes_active ON episodes(is_active);
+          CREATE INDEX IF NOT EXISTS idx_episodes_started ON episodes(started_at);
+
+          -- Entities table (GraphRAG pattern)
+          CREATE TABLE IF NOT EXISTS entities (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('person', 'organization', 'location', 'concept', 'tool', 'project', 'file', 'technology', 'event', 'custom')),
+            description TEXT,
+            aliases TEXT NOT NULL DEFAULT '[]',
+            mentioned_in_memory_ids TEXT NOT NULL DEFAULT '[]',
+            mention_count INTEGER NOT NULL DEFAULT 0,
+            first_seen_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL,
+            importance REAL NOT NULL DEFAULT 0.5,
+            embedding BLOB,
+            attributes TEXT NOT NULL DEFAULT '{}',
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
+          CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
+          CREATE INDEX IF NOT EXISTS idx_entities_importance ON entities(importance);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_name_type ON entities(name, type);
+
+          -- Entity relations table (GraphRAG pattern)
+          CREATE TABLE IF NOT EXISTS entity_relations (
+            id TEXT PRIMARY KEY,
+            source_entity_id TEXT NOT NULL,
+            target_entity_id TEXT NOT NULL,
+            relation_type TEXT NOT NULL CHECK(relation_type IN ('works_at', 'works_on', 'created_by', 'uses', 'depends_on', 'related_to', 'part_of', 'located_in', 'happened_at', 'prefers', 'dislikes', 'custom')),
+            description TEXT,
+            strength REAL NOT NULL DEFAULT 0.5,
+            source_memory_ids TEXT NOT NULL DEFAULT '[]',
+            created_at INTEGER NOT NULL,
+            last_reinforced_at INTEGER NOT NULL,
+            FOREIGN KEY (source_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+            FOREIGN KEY (target_entity_id) REFERENCES entities(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_relations_source ON entity_relations(source_entity_id);
+          CREATE INDEX IF NOT EXISTS idx_relations_target ON entity_relations(target_entity_id);
+          CREATE INDEX IF NOT EXISTS idx_relations_type ON entity_relations(relation_type);
+
+          -- Memory clusters table (RAPTOR pattern)
+          CREATE TABLE IF NOT EXISTS memory_clusters (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            memory_ids TEXT NOT NULL DEFAULT '[]',
+            parent_cluster_id TEXT,
+            child_cluster_ids TEXT NOT NULL DEFAULT '[]',
+            level INTEGER NOT NULL DEFAULT 0,
+            centroid_embedding BLOB,
+            coherence_score REAL NOT NULL DEFAULT 0.0,
+            total_memory_count INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            FOREIGN KEY (parent_cluster_id) REFERENCES memory_clusters(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_clusters_parent ON memory_clusters(parent_cluster_id);
+          CREATE INDEX IF NOT EXISTS idx_clusters_level ON memory_clusters(level);
+
+          -- Reflections table (Generative Agents pattern)
+          CREATE TABLE IF NOT EXISTS reflections (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('belief', 'pattern', 'preference', 'goal', 'constraint', 'summary', 'insight')),
+            source_memory_ids TEXT NOT NULL DEFAULT '[]',
+            confidence REAL NOT NULL DEFAULT 0.5,
+            evidence_count INTEGER NOT NULL DEFAULT 0,
+            open_questions TEXT,
+            is_contradicted INTEGER NOT NULL DEFAULT 0,
+            contradicted_by_id TEXT,
+            embedding BLOB,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            validated_at INTEGER,
+            FOREIGN KEY (contradicted_by_id) REFERENCES reflections(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_reflections_type ON reflections(type);
+          CREATE INDEX IF NOT EXISTS idx_reflections_contradicted ON reflections(is_contradicted);
+
+          -- Contradictions table (BDI Agent pattern)
+          CREATE TABLE IF NOT EXISTS contradictions (
+            id TEXT PRIMARY KEY,
+            item_a_id TEXT NOT NULL,
+            item_a_type TEXT NOT NULL CHECK(item_a_type IN ('memory', 'reflection')),
+            item_b_id TEXT NOT NULL,
+            item_b_type TEXT NOT NULL CHECK(item_b_type IN ('memory', 'reflection')),
+            description TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('factual', 'preference', 'temporal', 'logical')),
+            severity REAL NOT NULL DEFAULT 0.5,
+            status TEXT NOT NULL DEFAULT 'unresolved' CHECK(status IN ('unresolved', 'resolved_newer', 'resolved_older', 'resolved_merged', 'acknowledged')),
+            resolution TEXT,
+            resolved_in_favor_of TEXT,
+            detected_at INTEGER NOT NULL,
+            resolved_at INTEGER
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_contradictions_status ON contradictions(status);
+          CREATE INDEX IF NOT EXISTS idx_contradictions_type ON contradictions(type);
+
+          -- Memory provenance table (Trust tracking)
+          CREATE TABLE IF NOT EXISTS memory_provenance (
+            memory_id TEXT PRIMARY KEY,
+            source_type TEXT NOT NULL CHECK(source_type IN ('user_stated', 'user_confirmed', 'inferred', 'tool_result', 'document', 'external_api', 'reflection')),
+            source_id TEXT,
+            source_name TEXT,
+            trust_score REAL NOT NULL DEFAULT 0.5,
+            verified INTEGER NOT NULL DEFAULT 0,
+            verification_method TEXT,
+            verified_by TEXT,
+            recorded_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_provenance_source ON memory_provenance(source_type);
+          CREATE INDEX IF NOT EXISTS idx_provenance_trust ON memory_provenance(trust_score);
+
+          -- Working memory table (MemGPT pattern - persistent for recovery)
+          CREATE TABLE IF NOT EXISTS working_memory (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('system', 'user', 'assistant', 'tool')),
+            tool_call_id TEXT,
+            added_at INTEGER NOT NULL,
+            token_count INTEGER NOT NULL DEFAULT 0,
+            priority INTEGER NOT NULL DEFAULT 0,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            source_memory_id TEXT,
+            session_id TEXT,
+            FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_working_memory_session ON working_memory(session_id);
+          CREATE INDEX IF NOT EXISTS idx_working_memory_added ON working_memory(added_at);
+          CREATE INDEX IF NOT EXISTS idx_working_memory_pinned ON working_memory(pinned);
+
+          -- Forgetting policies table
+          CREATE TABLE IF NOT EXISTS forgetting_policies (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            conditions TEXT NOT NULL DEFAULT '[]',
+            action TEXT NOT NULL CHECK(action IN ('archive', 'summarize', 'delete', 'demote')),
+            applicable_types TEXT,
+            exempt_tags TEXT,
+            min_importance_exemption REAL,
+            last_run_at INTEGER,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_forgetting_enabled ON forgetting_policies(enabled);
+
+          -- Extend memories table with temporal fields
+          ALTER TABLE memories ADD COLUMN expires_at INTEGER;
+          ALTER TABLE memories ADD COLUMN decay_rate REAL DEFAULT 0.99;
+          ALTER TABLE memories ADD COLUMN episode_id TEXT REFERENCES episodes(id) ON DELETE SET NULL;
+          
+          CREATE INDEX IF NOT EXISTS idx_memories_episode ON memories(episode_id);
+          CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at);
+        `,
+      },
     ];
 
     // Apply pending migrations
