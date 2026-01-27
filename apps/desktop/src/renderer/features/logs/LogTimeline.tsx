@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Badge, ScrollArea } from '@renderer/components/ui';
+import { ScrollArea } from '@renderer/components/ui';
 import type { LogItem } from './LogViewer';
 
 /**
