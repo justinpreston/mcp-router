@@ -43,6 +43,7 @@ import type {
   IProcessHealthMonitor,
   IDeepLinkHandler,
   ITrayService,
+  IClientSyncService,
 } from './interfaces';
 
 // Import implementations (these will be created in subsequent files)
@@ -64,7 +65,8 @@ import { PolicyEngine } from '@main/services/policy/policy-engine.service';
 import { ApprovalQueueService } from '@main/services/approval/approval-queue.service';
 import { TokenBucketRateLimiter } from '@main/services/rate-limit/rate-limiter.service';
 import { MemoryService } from '@main/services/memory/memory.service';
-import { LocalEmbeddingProvider, type IEmbeddingProvider } from '@main/services/memory/embedding.provider';
+import { type IEmbeddingProvider } from '@main/services/memory/embedding.provider';
+import { NeuralEmbeddingProvider } from '@main/services/memory/neural-embedding.provider';
 import { AuditService } from '@main/services/audit/audit.service';
 import { ToolCatalogService } from '@main/services/catalog/tool-catalog.service';
 import { BM25SearchProvider, type ISearchProvider } from '@main/services/catalog/bm25-search.provider';
@@ -84,6 +86,18 @@ import { DeepLinkHandler } from '@main/security/deep-link-handler';
 // System Integration
 import { TrayService } from '@main/services/tray/tray.service';
 import { AutoUpdaterService, type IAutoUpdater } from '@main/services/updater';
+
+// Client Sync (AI Hub Feature Parity)
+import { ClientSyncService } from '@main/services/sync';
+import { BuiltinToolsService } from '@main/services/mcp/builtin-tools.service';
+import type { IBuiltinToolsService } from './interfaces';
+
+// Advanced Memory (State-of-the-Art AI Agent Memory)
+import { AdvancedMemoryService } from '@main/services/memory/advanced-memory.service';
+import type { IAdvancedMemoryService } from './advanced-memory.types';
+import { EpisodeRepository, type IEpisodeRepository } from '@main/repositories/episode.repository';
+import { EntityRepository, type IEntityRepository } from '@main/repositories/entity.repository';
+import { ReflectionRepository, type IReflectionRepository } from '@main/repositories/reflection.repository';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -146,7 +160,9 @@ export function createContainer(): Container {
   container.bind<IPolicyEngine>(TYPES.PolicyEngine).to(PolicyEngine);
   container.bind<IApprovalQueue>(TYPES.ApprovalQueue).to(ApprovalQueueService);
   container.bind<IRateLimiter>(TYPES.RateLimiter).to(TokenBucketRateLimiter);
-  container.bind<IEmbeddingProvider>(TYPES.EmbeddingProvider).to(LocalEmbeddingProvider);
+  // Use NeuralEmbeddingProvider for high-quality semantic embeddings (Transformers.js)
+  // Falls back to LocalEmbeddingProvider if neural provider fails to load
+  container.bind<IEmbeddingProvider>(TYPES.EmbeddingProvider).to(NeuralEmbeddingProvider);
   container.bind<IMemoryService>(TYPES.MemoryService).to(MemoryService);
   container.bind<IAuditService>(TYPES.AuditService).to(AuditService);
   container.bind<ISearchProvider>(TYPES.BM25SearchProvider).to(BM25SearchProvider);
@@ -181,6 +197,24 @@ export function createContainer(): Container {
   // ============================================================================
   container.bind<ITrayService>(TYPES.TrayService).to(TrayService);
   container.bind<IAutoUpdater>(TYPES.AutoUpdater).to(AutoUpdaterService);
+
+  // ============================================================================
+  // Client Sync (AI Hub Feature Parity)
+  // ============================================================================
+  container.bind<IClientSyncService>(TYPES.ClientSyncService).to(ClientSyncService);
+
+  // ============================================================================
+  // Built-in MCP Tools (AI Hub Feature Parity)
+  // ============================================================================
+  container.bind<IBuiltinToolsService>(TYPES.BuiltinToolsService).to(BuiltinToolsService);
+
+  // ============================================================================
+  // Advanced Memory System (State-of-the-Art AI Agent Memory)
+  // ============================================================================
+  container.bind<IEpisodeRepository>(TYPES.EpisodeRepository).to(EpisodeRepository);
+  container.bind<IEntityRepository>(TYPES.EntityRepository).to(EntityRepository);
+  container.bind<IReflectionRepository>(TYPES.ReflectionRepository).to(ReflectionRepository);
+  container.bind<IAdvancedMemoryService>(TYPES.AdvancedMemoryService).to(AdvancedMemoryService);
 
   return container;
 }

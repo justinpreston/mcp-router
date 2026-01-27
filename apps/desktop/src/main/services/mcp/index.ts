@@ -20,4 +20,5 @@ export { SseTransport } from './sse-transport';
 export { ProcessHealthMonitor } from './process-health-monitor';
 export { McpClientService } from './mcp-client.service';
 export { McpClientFactory } from './mcp-client-factory';
+export { BuiltinToolsService } from './builtin-tools.service';
 export type { McpClientOptions } from './mcp-client.service';

@@ -5,6 +5,9 @@ import type {
   IDatabase,
   AuditEvent,
   AuditEventType,
+  AuditQueryOptions,
+  PaginationOptions,
+  PaginatedResponse,
 } from '@main/core/interfaces';
 
 /**
@@ -103,6 +106,91 @@ export class AuditRepository implements IAuditRepository {
 
     const rows = stmt.all(...params) as AuditEventRow[];
     return rows.map(row => this.mapRowToEvent(row));
+  }
+
+  /**
+   * Cursor-based pagination for efficient large dataset queries.
+   * Uses timestamp as the cursor.
+   */
+  async queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>> {
+    const limit = options.limit ?? 50;
+    const orderDir = options.orderDir ?? 'desc';
+    const cursor = options.cursor ? parseInt(options.cursor, 10) : undefined;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    // Add filter conditions
+    if (options.type) {
+      conditions.push('type = ?');
+      params.push(options.type);
+    }
+
+    if (options.clientId) {
+      conditions.push('client_id = ?');
+      params.push(options.clientId);
+    }
+
+    if (options.serverId) {
+      conditions.push('server_id = ?');
+      params.push(options.serverId);
+    }
+
+    if (options.startTime) {
+      conditions.push('timestamp >= ?');
+      params.push(options.startTime);
+    }
+
+    if (options.endTime) {
+      conditions.push('timestamp <= ?');
+      params.push(options.endTime);
+    }
+
+    // Add cursor condition
+    if (cursor) {
+      if (orderDir === 'desc') {
+        conditions.push('timestamp < ?');
+      } else {
+        conditions.push('timestamp > ?');
+      }
+      params.push(cursor);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const stmt = this.database.db.prepare(`
+      SELECT * FROM audit_events
+      ${whereClause}
+      ORDER BY timestamp ${orderDir === 'desc' ? 'DESC' : 'ASC'}
+      LIMIT ?
+    `);
+
+    params.push(limit + 1);
+
+    const rows = stmt.all(...params) as AuditEventRow[];
+
+    // Check if there are more items
+    const hasMore = rows.length > limit;
+    if (hasMore) {
+      rows.pop();
+    }
+
+    const items = rows.map(row => this.mapRowToEvent(row));
+
+    // Generate next cursor from last item
+    const lastItem = items[items.length - 1];
+    const nextCursor = hasMore && lastItem
+      ? lastItem.timestamp.toString()
+      : undefined;
+
+    return {
+      items,
+      nextCursor,
+      hasMore,
+    };
   }
 
   async count(options?: {

@@ -7,6 +7,9 @@ import type {
   ILogger,
   AuditEvent,
   AuditEventType,
+  AuditQueryOptions,
+  PaginationOptions,
+  PaginatedResponse,
 } from '@main/core/interfaces';
 
 /**
@@ -42,6 +45,7 @@ export class AuditService implements IAuditService {
 
   /**
    * Query audit events.
+   * @deprecated Use queryPaginated for better performance with large datasets
    */
   async query(options: {
     type?: AuditEventType;
@@ -53,6 +57,16 @@ export class AuditService implements IAuditService {
     offset?: number;
   }): Promise<AuditEvent[]> {
     return this.auditRepo.query(options);
+  }
+
+  /**
+   * Query audit events with cursor-based pagination.
+   * More efficient than offset pagination for large datasets.
+   */
+  async queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>> {
+    return this.auditRepo.queryPaginated(options);
   }
 
   /**

@@ -12,7 +12,9 @@ export type NodeType =
   | 'loop'
   | 'parallel'
   | 'wait'
-  | 'webhook';
+  | 'webhook'
+  | 'memoryQuery'
+  | 'memoryStore';
 
 /**
  * Base data structure for all workflow nodes.
@@ -46,7 +48,9 @@ export type NodeConfig =
   | LoopNodeConfig
   | ParallelNodeConfig
   | WaitNodeConfig
-  | WebhookNodeConfig;
+  | WebhookNodeConfig
+  | MemoryQueryNodeConfig
+  | MemoryStoreNodeConfig;
 
 export interface StartNodeConfig {
   type: 'start';
@@ -130,6 +134,46 @@ export interface WebhookNodeConfig {
   headers?: Record<string, string>;
   /** Body template */
   body?: string;
+}
+
+/**
+ * Memory Query node configuration.
+ * Retrieves relevant memories based on semantic search.
+ */
+export interface MemoryQueryNodeConfig {
+  type: 'memoryQuery';
+  /** Search query (supports template variables like {{input.topic}}) */
+  query: string;
+  /** Filter by memory types */
+  types?: ('note' | 'conversation' | 'code' | 'document' | 'task' | 'reference')[];
+  /** Maximum number of results */
+  limit?: number;
+  /** Minimum similarity score (0-1) */
+  minSimilarity?: number;
+  /** Variable name to store results in workflow context */
+  outputVariable: string;
+  /** Search mode: semantic, hybrid, or text */
+  searchMode?: 'semantic' | 'hybrid' | 'text';
+}
+
+/**
+ * Memory Store node configuration.
+ * Stores new memories or updates existing ones.
+ */
+export interface MemoryStoreNodeConfig {
+  type: 'memoryStore';
+  /** Memory type */
+  memoryType: 'note' | 'conversation' | 'code' | 'document' | 'task' | 'reference';
+  /** Content template (supports template variables) */
+  content: string;
+  /** Tags to apply */
+  tags?: string[];
+  /** Importance score (0-1) */
+  importance?: number;
+  /** Source identifier */
+  source?: string;
+  /** Variable name to store created memory ID */
+  outputVariable?: string;
 }
 
 /**

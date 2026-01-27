@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Card,
   CardHeader,
@@ -13,10 +13,18 @@ import {
   Input,
   Button,
   Badge,
+  Tabs,
+  TabsList,
+  TabsTrigger,
 } from '@renderer/components/ui';
-import { Search, Download, Trash2 } from 'lucide-react';
+import { Search, Download, Trash2, List, Clock, BarChart3 } from 'lucide-react';
 import { LogEntry } from './LogEntry';
 import { ActivityHeatmap } from './ActivityHeatmap';
+import { LogTimeline } from './LogTimeline';
+import { LogDetail } from './LogDetail';
+
+/** Available view modes for the log viewer */
+type ViewMode = 'list' | 'timeline' | 'heatmap';
 
 export interface LogItem {
   id: string;
@@ -38,6 +46,8 @@ export function LogViewer({ logs = [], onExport, onClear }: LogViewerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [serverFilter, setServerFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedLog, setSelectedLog] = useState<LogItem | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
     hour: number;
     day: number;
@@ -104,6 +114,16 @@ export function LogViewer({ logs = [], onExport, onClear }: LogViewerProps) {
     }
   };
 
+  // Handle log selection
+  const handleSelectLog = useCallback((log: LogItem) => {
+    setSelectedLog((prev) => (prev?.id === log.id ? null : log));
+  }, []);
+
+  // Close detail panel
+  const handleCloseDetail = useCallback(() => {
+    setSelectedLog(null);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header with stats and actions */}
@@ -113,7 +133,21 @@ export function LogViewer({ logs = [], onExport, onClear }: LogViewerProps) {
           <Badge variant="destructive">{levelCounts.error} errors</Badge>
           <Badge className="bg-yellow-500">{levelCounts.warn} warnings</Badge>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="list" className="px-2" title="List view">
+                <List className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className="px-2" title="Timeline view">
+                <Clock className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="heatmap" className="px-2" title="Heatmap view">
+                <BarChart3 className="h-4 w-4" />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Button
             variant="outline"
             size="sm"
@@ -139,30 +173,32 @@ export function LogViewer({ logs = [], onExport, onClear }: LogViewerProps) {
         </div>
       </div>
 
-      {/* Activity Heatmap */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Activity Heatmap</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ActivityHeatmap
-            logs={logs}
-            selectedTimeSlot={selectedTimeSlot}
-            onTimeSlotClick={handleTimeSlotClick}
-          />
-          {selectedTimeSlot && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Filtering by: Day {selectedTimeSlot.day}, Hour {selectedTimeSlot.hour}
-              <button
-                onClick={() => setSelectedTimeSlot(null)}
-                className="ml-2 text-primary hover:underline"
-              >
-                Clear filter
-              </button>
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Activity Heatmap - show when in heatmap mode */}
+      {viewMode === 'heatmap' && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Activity Heatmap</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ActivityHeatmap
+              logs={logs}
+              selectedTimeSlot={selectedTimeSlot}
+              onTimeSlotClick={handleTimeSlotClick}
+            />
+            {selectedTimeSlot && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Filtering by: Day {selectedTimeSlot.day}, Hour {selectedTimeSlot.hour}
+                <button
+                  onClick={() => setSelectedTimeSlot(null)}
+                  className="ml-2 text-primary hover:underline"
+                >
+                  Clear filter
+                </button>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
@@ -205,22 +241,92 @@ export function LogViewer({ logs = [], onExport, onClear }: LogViewerProps) {
         </Select>
       </div>
 
-      {/* Log Stream */}
-      <Card className="flex-1">
-        <ScrollArea className="h-[400px]">
-          <div className="p-4 space-y-1">
-            {filteredLogs.length === 0 ? (
-              <div className="flex h-32 items-center justify-center text-muted-foreground">
-                <p className="text-sm">No logs to display</p>
-              </div>
-            ) : (
-              filteredLogs.map((log) => (
-                <LogEntry key={log.id} log={log} />
-              ))
-            )}
+      {/* Log Content - different views based on mode */}
+      <div className="flex gap-4 flex-1">
+        {/* Main content area */}
+        <div className={`flex-1 ${selectedLog ? 'max-w-[calc(100%-350px)]' : ''}`}>
+          {viewMode === 'list' && (
+            <Card className="flex-1">
+              <ScrollArea className="h-[400px]">
+                <div className="p-4 space-y-1">
+                  {filteredLogs.length === 0 ? (
+                    <div className="flex h-32 items-center justify-center text-muted-foreground">
+                      <p className="text-sm">No logs to display</p>
+                    </div>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        onClick={() => handleSelectLog(log)}
+                        className={`cursor-pointer rounded transition-colors ${
+                          selectedLog?.id === log.id
+                            ? 'ring-1 ring-primary bg-accent/50'
+                            : 'hover:bg-accent/30'
+                        }`}
+                      >
+                        <LogEntry log={log} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </Card>
+          )}
+
+          {viewMode === 'timeline' && (
+            <Card className="flex-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Request Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LogTimeline
+                  logs={filteredLogs}
+                  selectedLogId={selectedLog?.id}
+                  onSelectLog={handleSelectLog}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {viewMode === 'heatmap' && (
+            <Card className="flex-1">
+              <ScrollArea className="h-[400px]">
+                <div className="p-4 space-y-1">
+                  {filteredLogs.length === 0 ? (
+                    <div className="flex h-32 items-center justify-center text-muted-foreground">
+                      <p className="text-sm">No logs in selected time slot</p>
+                    </div>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        onClick={() => handleSelectLog(log)}
+                        className={`cursor-pointer rounded transition-colors ${
+                          selectedLog?.id === log.id
+                            ? 'ring-1 ring-primary bg-accent/50'
+                            : 'hover:bg-accent/30'
+                        }`}
+                      >
+                        <LogEntry log={log} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </Card>
+          )}
+        </div>
+
+        {/* Detail panel */}
+        {selectedLog && (
+          <div className="w-[340px] flex-shrink-0">
+            <LogDetail log={selectedLog} onClose={handleCloseDetail} />
           </div>
-        </ScrollArea>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }
