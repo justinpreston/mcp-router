@@ -612,6 +612,7 @@ export class BuiltinToolsService implements IBuiltinToolsService {
     };
   }
 
+  // ==========================================================================
   // Advanced Memory Tool Handlers
   // ==========================================================================
 
