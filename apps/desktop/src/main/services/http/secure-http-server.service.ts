@@ -14,8 +14,10 @@ import type {
   IProjectService,
   IMcpAggregator,
   IServerManager,
+  IBuiltinToolsService,
   MCPTool,
 } from '@main/core/interfaces';
+import { BUILTIN_SERVER_ID } from '@main/core/interfaces';
 
 /**
  * Security-hardened Express HTTP server.
@@ -36,7 +38,8 @@ export class SecureHttpServer implements IHttpServer {
     @inject(TYPES.TokenValidator) private tokenValidator: ITokenValidator,
     @inject(TYPES.ProjectService) private projectService: IProjectService,
     @inject(TYPES.McpAggregator) private mcpAggregator: IMcpAggregator,
-    @inject(TYPES.ServerManager) private serverManager: IServerManager
+    @inject(TYPES.ServerManager) private serverManager: IServerManager,
+    @inject(TYPES.BuiltinToolsService) private builtinToolsService: IBuiltinToolsService
   ) {
     this.app = express();
     this.configureMiddleware();
@@ -498,7 +501,7 @@ export class SecureHttpServer implements IHttpServer {
 
   /**
    * JSON-RPC tools/list handler - lists all available tools across servers.
-   * Supports project-scoped filtering.
+   * Includes built-in tools (memory, etc.) and supports project-scoped filtering.
    */
   private async jsonRpcToolsList(req: AuthenticatedRequest): Promise<{ tools: MCPTool[] }> {
     const tokenId = req.token.id;
@@ -511,11 +514,16 @@ export class SecureHttpServer implements IHttpServer {
       tools = tools.filter(tool => projectServerIds.has(tool.serverId));
     }
 
+    // Add built-in tools (memory, etc.) - these are always available
+    const builtinTools = this.builtinToolsService.getTools();
+    tools = [...builtinTools, ...tools];
+
     return { tools };
   }
 
   /**
    * JSON-RPC tools/call handler - executes a tool on a specific server.
+   * Routes built-in tools to internal service, external tools to MCP servers.
    */
   private async jsonRpcToolsCall(
     req: AuthenticatedRequest,
@@ -528,6 +536,16 @@ export class SecureHttpServer implements IHttpServer {
     }
 
     const { server_id, tool_name, arguments: args } = parseResult.data;
+
+    // Handle built-in tools (memory, etc.)
+    if (server_id === BUILTIN_SERVER_ID || this.builtinToolsService.isBuiltinTool(tool_name)) {
+      this.logger.debug('Executing built-in tool', { tool_name, args });
+      const builtinResult = await this.builtinToolsService.callTool(tool_name, args);
+      if (!builtinResult.success) {
+        throw new Error(builtinResult.error || 'Built-in tool execution failed');
+      }
+      return builtinResult.result;
+    }
 
     // Verify server is within project scope if project context exists
     if (req.projectId) {
@@ -711,6 +729,18 @@ export class SecureHttpServer implements IHttpServer {
 
       const { server_id, tool_name, arguments: args } = parseResult.data;
 
+      // Handle built-in tools (memory, etc.)
+      if (server_id === BUILTIN_SERVER_ID || this.builtinToolsService.isBuiltinTool(tool_name)) {
+        this.logger.debug('Executing built-in tool via REST', { tool_name, args });
+        const builtinResult = await this.builtinToolsService.callTool(tool_name, args);
+        if (!builtinResult.success) {
+          res.status(400).json({ error: builtinResult.error || 'Built-in tool execution failed' });
+          return;
+        }
+        res.json({ result: builtinResult.result });
+        return;
+      }
+
       // Verify server is within project scope if project context exists
       if (req.projectId) {
         const projectServers = this.serverManager.getServersByProject(req.projectId);
@@ -745,6 +775,10 @@ export class SecureHttpServer implements IHttpServer {
         const projectServerIds = new Set(projectServers.map(s => s.id));
         tools = tools.filter(tool => projectServerIds.has(tool.serverId));
       }
+
+      // Add built-in tools (memory, etc.)
+      const builtinTools = this.builtinToolsService.getTools();
+      tools = [...builtinTools, ...tools];
 
       res.json({ tools });
     } catch (error) {

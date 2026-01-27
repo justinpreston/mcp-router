@@ -69,6 +69,9 @@ export const TYPES = {
 
   // Client Sync (AI Hub Feature Parity)
   ClientSyncService: Symbol.for('ClientSyncService'),
+
+  // Built-in Tools (AI Hub Feature Parity)
+  BuiltinToolsService: Symbol.for('BuiltinToolsService'),
 } as const;
 
 export type TypeKeys = keyof typeof TYPES;

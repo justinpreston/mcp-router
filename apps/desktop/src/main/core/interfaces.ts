@@ -710,6 +710,37 @@ export interface IMcpAggregator {
 }
 
 // ============================================================================
+// Built-in MCP Tools
+// ============================================================================
+
+/**
+ * Built-in tool call result.
+ */
+export interface BuiltinToolResult {
+  success: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+/**
+ * Service providing built-in MCP tools (memory, etc.) that are exposed
+ * alongside external MCP server tools.
+ */
+export interface IBuiltinToolsService {
+  /** Get all built-in tools available */
+  getTools(): MCPTool[];
+  
+  /** Check if a tool name is a built-in tool */
+  isBuiltinTool(toolName: string): boolean;
+  
+  /** Execute a built-in tool */
+  callTool(toolName: string, args: Record<string, unknown>): Promise<BuiltinToolResult>;
+}
+
+/** Special server ID for built-in tools */
+export const BUILTIN_SERVER_ID = '_builtin';
+
+// ============================================================================
 // MCP Client & Transport Layer
 // ============================================================================
 

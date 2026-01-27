@@ -81,6 +81,11 @@ export type {
   McpRequest,
   McpResponse,
   IMcpAggregator,
+
+  // Built-in Tools
+  IBuiltinToolsService,
+  BuiltinToolResult,
+  BUILTIN_SERVER_ID,
 } from './interfaces';
 
 export {

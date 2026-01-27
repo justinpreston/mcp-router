@@ -89,6 +89,8 @@ import { AutoUpdaterService, type IAutoUpdater } from '@main/services/updater';
 
 // Client Sync (AI Hub Feature Parity)
 import { ClientSyncService } from '@main/services/sync';
+import { BuiltinToolsService } from '@main/services/mcp/builtin-tools.service';
+import type { IBuiltinToolsService } from './interfaces';
 
 // Repositories
 import { TokenRepository } from '@main/repositories/token.repository';
@@ -193,6 +195,11 @@ export function createContainer(): Container {
   // Client Sync (AI Hub Feature Parity)
   // ============================================================================
   container.bind<IClientSyncService>(TYPES.ClientSyncService).to(ClientSyncService);
+
+  // ============================================================================
+  // Built-in MCP Tools (AI Hub Feature Parity)
+  // ============================================================================
+  container.bind<IBuiltinToolsService>(TYPES.BuiltinToolsService).to(BuiltinToolsService);
 
   return container;
 }
