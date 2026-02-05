@@ -287,6 +287,7 @@ GET /health
 | `SERVER_NOT_FOUND` | Target server does not exist |
 | `SERVER_OFFLINE` | Target server is not running |
 | `POLICY_DENIED` | Access denied by policy rule |
+| `POLICY_REDACTED` | Tool call allowed but specified fields were redacted |
 | `APPROVAL_REQUIRED` | Operation needs manual approval |
 | `APPROVAL_REJECTED` | Approval request was rejected |
 | `APPROVAL_EXPIRED` | Approval request timed out |
@@ -426,6 +427,24 @@ const policy = await window.electron.policies.add({
   enabled: true
 });
 ```
+
+Create a redaction policy (masks sensitive fields in tool results):
+
+```typescript
+const policy = await window.electron.policies.add({
+  name: 'Redact API keys from responses',
+  scope: 'global',
+  resourceType: 'tool',
+  pattern: '*',
+  action: 'redact',
+  priority: 50,
+  enabled: true,
+  redactFields: ['api_key', 'auth.password', 'secret']
+});
+```
+
+Policy actions: `allow`, `deny`, `require_approval`, `redact`.
+When `action` is `redact`, the `redactFields` array specifies dot-notation paths to mask with `[REDACTED]`.
 
 #### `policies:update`
 

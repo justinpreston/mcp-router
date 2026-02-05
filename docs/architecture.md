@@ -78,6 +78,8 @@ Services encapsulate business logic and are the primary units of functionality:
 | `ToolCatalogService` | Aggregated tool discovery |
 | `McpAggregator` | MCP protocol aggregation |
 | `McpProtocolServer` | MCP SDK Server wrapper — routes protocol requests to services |
+| `RiskClassifier` | Regex-based tool risk classification (`read` / `write` / `exec`) |
+| `ClientSyncService` | Cross-platform config sync to AI clients (macOS, Windows, Linux) |
 | `SecureHttpServer` | Express HTTP gateway with SDK transports (StreamableHTTP + SSE) |
 | `McpClientFactory` | Creates SDK Client instances per upstream MCP server |
 
@@ -186,6 +188,7 @@ renderer/
                        │   └─► McpClientFactory (SDK Client → upstream server)
                        │       └─► Audit Log (AuditService)
                        ├─► DENY: Return Error
+                       ├─► REDACT: Execute Tool → Mask redactFields in result
                        └─► REQUIRE_APPROVAL: Queue Request (ApprovalQueueService)
                            └─► User Decision
                                ├─► Approve: Continue to Execute
@@ -262,21 +265,56 @@ Claude Desktop ←stdio→ mcp-router-cli bridge ←HTTP→ MCP Router
 
 ### Policy Evaluation
 
-Policies are evaluated in priority order (highest first):
+Policies use **scope-based precedence** — the most specific matching scope wins. Within the same scope, rules are ordered by priority (descending), then creation date (newest first).
+
+| Scope | Specificity | Description |
+|-------|-------------|-------------|
+| `client` | 3 (highest) | Rules targeting a specific client token |
+| `server` / `workspace` | 2 | Rules scoped to a server or workspace |
+| `global` | 1 (lowest) | Rules applying to all requests |
 
 ```typescript
 interface PolicyRule {
   id: string;
   name: string;
+  description?: string;
   scope: 'global' | 'client' | 'server';
   scopeId?: string;
   resourceType: 'tool' | 'server' | 'resource' | 'prompt';
   pattern: string;        // Glob pattern
-  action: 'allow' | 'deny' | 'require_approval';
-  priority: number;       // Higher = evaluated first
+  action: 'allow' | 'deny' | 'require_approval' | 'redact';
+  priority: number;       // Higher = evaluated first (within same scope)
   enabled: boolean;
+  conditions?: Record<string, unknown>;
+  redactFields?: string[];  // Dot-notation paths, e.g. ['auth.password', 'api_key']
 }
 ```
+
+When a `redact` policy matches, the tool call is allowed but specified fields in the result are replaced with `[REDACTED]`. Nested paths (e.g. `auth.password`) are traversed via dot-notation.
+
+### Risk Classification
+
+Tools are automatically classified by risk level based on their name using regex pattern matching:
+
+| Risk Level | Pattern | Default Rate Limit |
+|------------|---------|-------------------|
+| `exec` | `/(exec\|run\|shell\|command\|terminal\|bash\|sh\|spawn\|evaluate)/i` | 10 req/min |
+| `write` | `/(create\|update\|delete\|write\|send\|post\|put\|patch\|remove\|insert\|modify\|set\|add\|push)/i` | 30 req/min |
+| `read` | Everything else | 100 req/min |
+
+Risk classification drives the default rate limits in `RateLimiterService.consumeForTool()`. Per-tool custom limits override risk-based defaults.
+
+### Cross-Platform Client Sync
+
+The `ClientSyncService` exports MCP Router bridge configurations to AI client apps. Platform paths are resolved dynamically via `process.platform`:
+
+| Client | macOS | Windows | Linux |
+|--------|-------|---------|-------|
+| Claude | `~/Library/Application Support/Claude/...` | `%APPDATA%/Claude/...` | `~/.config/Claude/...` |
+| Cursor | `~/.cursor/mcp.json` | `%USERPROFILE%/.cursor/mcp.json` | `~/.cursor/mcp.json` |
+| VS Code | `~/Library/Application Support/Code/User/settings.json` | `%APPDATA%/Code/User/settings.json` | `~/.config/Code/User/settings.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | VS Code globalStorage path | VS Code globalStorage path | VS Code globalStorage path |
 
 ## Database Schema
 
@@ -314,13 +352,16 @@ CREATE TABLE servers (
 CREATE TABLE policies (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  description TEXT,
   scope TEXT NOT NULL,
   scope_id TEXT,
   resource_type TEXT NOT NULL,
   pattern TEXT NOT NULL,
-  action TEXT NOT NULL,
+  action TEXT NOT NULL,        -- 'allow' | 'deny' | 'require_approval' | 'redact'
   priority INTEGER NOT NULL,
   enabled INTEGER NOT NULL,
+  conditions TEXT,             -- JSON object
+  redact_fields TEXT,          -- JSON array of dot-notation paths
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
