@@ -75,6 +75,36 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('workspaces:removeServer', workspaceId, serverId),
   },
 
+  // Project management
+  projects: {
+    list: () => ipcRenderer.invoke('projects:list'),
+    get: (id: string) => ipcRenderer.invoke('projects:get', id),
+    getBySlug: (slug: string) => ipcRenderer.invoke('projects:getBySlug', slug),
+    create: (config: unknown) => ipcRenderer.invoke('projects:create', config),
+    update: (id: string, updates: unknown) =>
+      ipcRenderer.invoke('projects:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('projects:delete', id),
+    addServer: (projectId: string, serverId: string) =>
+      ipcRenderer.invoke('projects:addServer', projectId, serverId),
+    removeServer: (projectId: string, serverId: string) =>
+      ipcRenderer.invoke('projects:removeServer', projectId, serverId),
+    addWorkspace: (projectId: string, workspaceId: string) =>
+      ipcRenderer.invoke('projects:addWorkspace', projectId, workspaceId),
+    removeWorkspace: (projectId: string, workspaceId: string) =>
+      ipcRenderer.invoke('projects:removeWorkspace', projectId, workspaceId),
+    // Tool overrides
+    listToolOverrides: (projectId: string) =>
+      ipcRenderer.invoke('projects:toolOverrides:list', projectId),
+    getToolOverride: (projectId: string, toolName: string) =>
+      ipcRenderer.invoke('projects:toolOverrides:get', projectId, toolName),
+    setToolOverride: (projectId: string, input: unknown) =>
+      ipcRenderer.invoke('projects:toolOverrides:set', projectId, input),
+    removeToolOverride: (projectId: string, toolName: string) =>
+      ipcRenderer.invoke('projects:toolOverrides:remove', projectId, toolName),
+    removeAllToolOverrides: (projectId: string) =>
+      ipcRenderer.invoke('projects:toolOverrides:removeAll', projectId),
+  },
+
   // Memory management
   memory: {
     store: (input: unknown) => ipcRenderer.invoke('memory:store', input),

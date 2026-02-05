@@ -165,6 +165,40 @@ export function createTestDatabase(): IDatabase {
     CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_events(type);
     CREATE INDEX IF NOT EXISTS idx_audit_client ON audit_events(client_id);
     CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);
+
+    -- Projects table
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      slug TEXT NOT NULL UNIQUE,
+      root_path TEXT,
+      server_ids TEXT NOT NULL DEFAULT '[]',
+      workspace_ids TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      settings TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
+    CREATE INDEX IF NOT EXISTS idx_projects_active ON projects(active);
+
+    -- Project tool overrides table
+    CREATE TABLE IF NOT EXISTS project_tool_overrides (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      tool_name TEXT NOT NULL,
+      visible INTEGER DEFAULT 1,
+      display_name TEXT,
+      default_args TEXT,
+      priority INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      UNIQUE(project_id, tool_name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pto_project ON project_tool_overrides(project_id);
   `);
 
   return {

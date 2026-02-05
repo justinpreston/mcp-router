@@ -34,6 +34,7 @@ export const TYPES = {
   AuditRepository: Symbol.for('AuditRepository'),
   WorkspaceRepository: Symbol.for('WorkspaceRepository'),
   ProjectRepository: Symbol.for('ProjectRepository'),
+  ProjectToolOverrideRepository: Symbol.for('ProjectToolOverrideRepository'),
   WorkflowRepository: Symbol.for('WorkflowRepository'),
   WorkflowExecutionRepository: Symbol.for('WorkflowExecutionRepository'),
   HookRepository: Symbol.for('HookRepository'),

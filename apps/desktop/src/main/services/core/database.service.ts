@@ -554,6 +554,26 @@ export class SqliteDatabase implements IDatabase {
           ALTER TABLE policies ADD COLUMN redact_fields TEXT;
         `,
       },
+      {
+        name: '008_project_tool_overrides',
+        up: `
+          -- Per-project tool visibility and configuration overrides
+          CREATE TABLE IF NOT EXISTS project_tool_overrides (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            tool_name TEXT NOT NULL,
+            visible INTEGER DEFAULT 1,
+            display_name TEXT,
+            default_args TEXT,
+            priority INTEGER DEFAULT 0,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+            UNIQUE(project_id, tool_name)
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_pto_project ON project_tool_overrides(project_id);
+        `,
+      },
     ];
 
     // Apply pending migrations

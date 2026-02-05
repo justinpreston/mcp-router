@@ -235,6 +235,12 @@ export interface IProjectService {
   removeServerFromProject(projectId: string, serverId: string): Promise<void>;
   addWorkspaceToProject(projectId: string, workspaceId: string): Promise<void>;
   removeWorkspaceFromProject(projectId: string, workspaceId: string): Promise<void>;
+  // Tool override methods
+  getToolOverrides(projectId: string): Promise<ProjectToolOverride[]>;
+  getToolOverride(projectId: string, toolName: string): Promise<ProjectToolOverride | null>;
+  setToolOverride(projectId: string, override: ProjectToolOverrideInput): Promise<ProjectToolOverride>;
+  removeToolOverride(projectId: string, toolName: string): Promise<void>;
+  removeAllToolOverrides(projectId: string): Promise<void>;
 }
 
 export interface IProjectRepository {
@@ -244,6 +250,50 @@ export interface IProjectRepository {
   findAll(): Promise<Project[]>;
   update(project: Project): Promise<Project>;
   delete(id: string): Promise<void>;
+}
+
+// ============================================================================
+// Project Tool Overrides
+// ============================================================================
+
+/**
+ * Per-project tool visibility and configuration overrides.
+ * Allows projects to hide, rename, or pre-fill arguments for specific tools.
+ */
+export interface ProjectToolOverride {
+  id: string;
+  projectId: string;
+  /** Original exposed tool name (e.g. 'my-server__read_file') */
+  toolName: string;
+  /** Whether this tool is visible to the project */
+  visible: boolean;
+  /** Optional display name override for this project */
+  displayName?: string;
+  /** Pre-filled default arguments (merged with user args, user wins) */
+  defaultArgs?: Record<string, unknown>;
+  /** Ordering hint (higher = shown first) */
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectToolOverrideInput {
+  toolName: string;
+  visible?: boolean;
+  displayName?: string;
+  defaultArgs?: Record<string, unknown>;
+  priority?: number;
+}
+
+export interface IProjectToolOverrideRepository {
+  create(override: ProjectToolOverride): Promise<ProjectToolOverride>;
+  findById(id: string): Promise<ProjectToolOverride | null>;
+  findByProjectId(projectId: string): Promise<ProjectToolOverride[]>;
+  findByProjectAndTool(projectId: string, toolName: string): Promise<ProjectToolOverride | null>;
+  update(override: ProjectToolOverride): Promise<ProjectToolOverride>;
+  delete(id: string): Promise<void>;
+  deleteByProjectId(projectId: string): Promise<void>;
+  deleteByProjectAndTool(projectId: string, toolName: string): Promise<void>;
 }
 
 // ============================================================================
