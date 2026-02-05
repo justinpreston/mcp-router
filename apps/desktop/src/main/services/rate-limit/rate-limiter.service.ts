@@ -1,5 +1,7 @@
 import { injectable } from 'inversify';
-import type { IRateLimiter, RateLimitConfig, RateLimitResult } from '@main/core/interfaces';
+import type { IRateLimiter, RateLimitConfig, RateLimitResult, RiskLevel } from '@main/core/interfaces';
+import { RISK_RATE_DEFAULTS } from '@main/core/interfaces';
+import { classifyToolRisk } from './risk-classifier';
 
 const DEFAULT_CONFIG: RateLimitConfig = {
   capacity: 100,
@@ -54,6 +56,29 @@ export class TokenBucketRateLimiter implements IRateLimiter {
   configure(key: string, config: RateLimitConfig): void {
     this.configs.set(key, config);
     this.buckets.set(key, new TokenBucket(config));
+  }
+
+  /**
+   * Consume a token for a tool call, auto-configuring risk-based defaults if no custom config exists.
+   * The rate limit key is scoped to `clientId:toolName` for per-client-per-tool limiting.
+   */
+  consumeForTool(clientId: string, toolName: string): RateLimitResult & { riskLevel: RiskLevel } {
+    const riskLevel = classifyToolRisk(toolName);
+    const key = `${clientId}:${toolName}`;
+
+    // Auto-configure risk-based defaults if no custom config exists
+    if (!this.configs.has(key)) {
+      this.configure(key, RISK_RATE_DEFAULTS[riskLevel]);
+    }
+
+    return { ...this.consume(key), riskLevel };
+  }
+
+  /**
+   * Get the risk level for a tool name.
+   */
+  classifyRisk(toolName: string): RiskLevel {
+    return classifyToolRisk(toolName);
   }
 
   getConfig(key: string): RateLimitConfig | undefined {

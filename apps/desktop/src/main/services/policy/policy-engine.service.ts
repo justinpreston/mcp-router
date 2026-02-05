@@ -11,6 +11,7 @@ import type {
   PolicyScope,
   PolicyCondition,
 } from '@main/core/interfaces';
+import { SCOPE_SPECIFICITY } from '@main/core/interfaces';
 
 /**
  * Policy engine for evaluating access control rules.
@@ -25,43 +26,51 @@ export class PolicyEngine implements IPolicyEngine {
 
   /**
    * Evaluate policy rules against a given context.
-   * Returns the decision based on the highest priority matching rule.
+   * Uses scope-based precedence: client > server/workspace > global.
+   * Within the same scope specificity, higher priority wins, then newest.
+   * Returns the decision from the most specific matching rule.
    */
   async evaluate(context: PolicyContext): Promise<PolicyDecision> {
     const rules = await this.policyRepo.findApplicable(context);
 
-    // Sort by priority (higher priority = evaluated first)
-    rules.sort((a, b) => b.priority - a.priority);
+    // Find all matching rules with their scope specificity
+    const matches: Array<{ rule: PolicyRule; specificity: number }> = [];
 
     for (const rule of rules) {
-      if (!rule.enabled) {
-        continue;
-      }
-
-      // Check if pattern matches the resource
-      if (!this.matchesPattern(rule.pattern, context.resourceName)) {
-        continue;
-      }
-
-      // Check conditions if present
+      if (!rule.enabled) continue;
+      if (!this.matchesPattern(rule.pattern, context.resourceName)) continue;
       if (rule.conditions && rule.conditions.length > 0) {
-        if (!this.evaluateConditions(rule.conditions, context)) {
-          continue;
-        }
+        if (!this.evaluateConditions(rule.conditions, context)) continue;
       }
+      const specificity = SCOPE_SPECIFICITY[rule.scope] ?? 0;
+      matches.push({ rule, specificity });
+    }
+
+    // Sort: highest specificity first, then highest priority, then newest
+    matches.sort((a, b) => {
+      if (b.specificity !== a.specificity) return b.specificity - a.specificity;
+      if (b.rule.priority !== a.rule.priority) return b.rule.priority - a.rule.priority;
+      return b.rule.createdAt - a.rule.createdAt;
+    });
+
+    if (matches.length > 0) {
+      const best = matches[0]!;
 
       this.logger.debug('Policy rule matched', {
-        ruleId: rule.id,
-        ruleName: rule.name,
-        action: rule.action,
+        ruleId: best.rule.id,
+        ruleName: best.rule.name,
+        action: best.rule.action,
+        scope: best.rule.scope,
+        specificity: best.specificity,
         resourceName: context.resourceName,
       });
 
       return {
-        action: rule.action,
-        ruleId: rule.id,
-        ruleName: rule.name,
-        reason: `Matched rule: ${rule.name}`,
+        action: best.rule.action,
+        ruleId: best.rule.id,
+        ruleName: best.rule.name,
+        reason: `Matched rule: ${best.rule.name} (scope: ${best.rule.scope})`,
+        redactions: best.rule.action === 'redact' ? best.rule.redactFields : undefined,
       };
     }
 
@@ -75,6 +84,48 @@ export class PolicyEngine implements IPolicyEngine {
       action: 'allow',
       reason: 'No matching rules, default allow',
     };
+  }
+
+  /**
+   * Apply field-level redactions to a data object.
+   * Supports dot-notation paths for nested fields (e.g., 'auth.password').
+   * Fields matching the paths are replaced with '[REDACTED]'.
+   */
+  applyRedactions(
+    data: Record<string, unknown>,
+    redactions: string[]
+  ): Record<string, unknown> {
+    const redacted = { ...data };
+
+    for (const fieldPath of redactions) {
+      if (fieldPath.includes('.')) {
+        // Handle nested paths: 'auth.password' → mask data.auth.password
+        const parts = fieldPath.split('.');
+        let current: Record<string, unknown> = redacted;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          const part = parts[i]!;
+          if (current[part] !== undefined && typeof current[part] === 'object' && current[part] !== null) {
+            current[part] = { ...(current[part] as Record<string, unknown>) };
+            current = current[part] as Record<string, unknown>;
+          } else {
+            break;
+          }
+        }
+
+        const lastKey = parts[parts.length - 1]!;
+        if (lastKey in current) {
+          current[lastKey] = '[REDACTED]';
+        }
+      } else {
+        // Top-level field
+        if (fieldPath in redacted) {
+          redacted[fieldPath] = '[REDACTED]';
+        }
+      }
+    }
+
+    return redacted;
   }
 
   async addRule(

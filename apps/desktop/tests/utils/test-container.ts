@@ -122,6 +122,7 @@ export function createTestDatabase(): IDatabase {
       action TEXT NOT NULL,
       priority INTEGER NOT NULL DEFAULT 0,
       conditions TEXT,
+      redact_fields TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
