@@ -77,6 +77,9 @@ Services encapsulate business logic and are the primary units of functionality:
 | `AuditService` | Event logging and audit trail |
 | `ToolCatalogService` | Aggregated tool discovery |
 | `McpAggregator` | MCP protocol aggregation |
+| `McpProtocolServer` | MCP SDK Server wrapper — routes protocol requests to services |
+| `SecureHttpServer` | Express HTTP gateway with SDK transports (StreamableHTTP + SSE) |
+| `McpClientFactory` | Creates SDK Client instances per upstream MCP server |
 
 ### Repository Layer
 
@@ -173,17 +176,54 @@ renderer/
 ### Request Flow (Tool Execution)
 
 ```
-1. Client Request
-   └─► Token Validation (TokenValidatorService)
-       └─► Policy Check (PolicyEngineService)
-           ├─► ALLOW: Rate Limit Check (RateLimiterService)
-           │   └─► Execute Tool (McpAggregatorService)
-           │       └─► Audit Log (AuditService)
-           ├─► DENY: Return Error
-           └─► REQUIRE_APPROVAL: Queue Request (ApprovalQueueService)
-               └─► User Decision
-                   ├─► Approve: Continue to Rate Limit
-                   └─► Reject: Return Error
+1. Client Request (StreamableHTTP or SSE)
+   └─► Express Middleware (CORS, Helmet, Rate Limiting)
+       └─► Auth Middleware (Bearer Token → TokenValidator)
+           └─► MCP SDK Transport (StreamableHTTPServerTransport / SSEServerTransport)
+               └─► McpProtocolServer (SDK Server request handlers)
+                   └─► Policy Check (PolicyEngineService)
+                       ├─► ALLOW: Execute Tool (McpAggregatorService)
+                       │   └─► McpClientFactory (SDK Client → upstream server)
+                       │       └─► Audit Log (AuditService)
+                       ├─► DENY: Return Error
+                       └─► REQUIRE_APPROVAL: Queue Request (ApprovalQueueService)
+                           └─► User Decision
+                               ├─► Approve: Continue to Execute
+                               └─► Reject: Return Error
+```
+
+### HTTP Transport Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    SecureHttpServer (Express)                 │
+│  Middleware: helmet → CORS → rate-limit → auth → project     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  POST|GET|DELETE /mcp ──► StreamableHTTPServerTransport       │
+│                              (stateless, per-request)        │
+│                                                              │
+│  GET /mcp/sse ──────────► SSEServerTransport                 │
+│  POST /mcp/messages ────► (session-based, persistent)        │
+│                                                              │
+│  GET /mcp/tools/list ───► Legacy REST endpoints (convenience)│
+│  POST /mcp/tools/call ──►                                    │
+│                                                              │
+├──────────────────────────────────────────────────────────────┤
+│                    McpProtocolServer (SDK Server)             │
+│  Handlers: ListTools, CallTool, ListResources,               │
+│            ReadResource, ListPrompts, GetPrompt              │
+├──────────────────────────────────────────────────────────────┤
+│           McpAggregator → McpClientFactory                   │
+│           SDK Client + StdioClientTransport (per server)     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### CLI Bridge (stdio-only clients)
+
+```
+Claude Desktop ←stdio→ mcp-router-cli bridge ←HTTP→ MCP Router
+   (StdioServerTransport)              (StreamableHTTPClientTransport)
 ```
 
 ### IPC Data Flow

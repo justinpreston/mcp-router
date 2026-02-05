@@ -20,6 +20,7 @@ An Architecture Decision Record captures an important architectural decision alo
 | [ADR-004](./004-zustand-state-management.md) | Use Zustand for UI State Management | Accepted | 2024-01 |
 | [ADR-005](./005-shadcn-ui-components.md) | Use shadcn/ui Component Patterns | Accepted | 2024-01 |
 | [ADR-006](./006-policy-based-access-control.md) | Implement Policy-Based Access Control | Accepted | 2024-01 |
+| [ADR-007](./007-mcp-sdk-transports.md) | Replace Custom JSON-RPC with MCP SDK Transports | Accepted | 2026-02 |
 
 ## ADR Template
 

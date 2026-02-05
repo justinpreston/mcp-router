@@ -90,6 +90,23 @@ apps/desktop/
 
 ## Development Workflow
 
+### MCP SDK Import Pattern
+
+The MCP SDK uses TypeScript package exports that the TypeScript compiler can't resolve natively. Use `// @ts-ignore` before SDK imports:
+
+```typescript
+// @ts-ignore - MCP SDK uses package exports
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+// @ts-ignore
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+// @ts-ignore
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+// @ts-ignore
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+```
+
+This pattern is consistent across MCP Router and AI Hub. The imports work at runtime; only the TypeScript type checker needs the suppression.
+
 ### Adding a New Service
 
 1. **Define the interface** in `src/main/core/interfaces.ts`:

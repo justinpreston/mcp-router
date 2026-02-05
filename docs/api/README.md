@@ -7,7 +7,7 @@ MCP Router exposes APIs through multiple interfaces:
 
 ## HTTP API
 
-The HTTP API provides MCP protocol endpoints for external clients.
+The HTTP API provides MCP protocol endpoints for external clients via official MCP SDK transports.
 
 ### Base URL
 
@@ -23,7 +23,83 @@ All requests require a Bearer token in the Authorization header:
 Authorization: Bearer <token>
 ```
 
-### Endpoints
+An optional `X-MCPR-Project` header scopes requests to a specific project:
+
+```
+X-MCPR-Project: my-project-slug
+```
+
+### MCP Protocol Endpoints (SDK Transports)
+
+These are the primary endpoints for standard MCP clients. They use the official MCP SDK wire protocol.
+
+#### StreamableHTTP Transport
+
+```http
+POST /mcp
+GET /mcp
+DELETE /mcp
+```
+
+Stateless HTTP transport for MCP SDK clients using `StreamableHTTPClientTransport`. Each request creates a fresh transport instance — no session management required.
+
+**Client example (MCP SDK):**
+```typescript
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+const client = new Client({ name: 'my-app', version: '1.0.0' }, { capabilities: {} });
+const transport = new StreamableHTTPClientTransport(new URL('http://localhost:3847/mcp'), {
+  requestInit: { headers: { Authorization: 'Bearer <token>' } },
+});
+await client.connect(transport);
+const { tools } = await client.listTools();
+```
+
+#### SSE Transport
+
+```http
+GET /mcp/sse
+POST /mcp/messages?sessionId=<id>
+```
+
+Session-based Server-Sent Events transport for MCP SDK clients using `SSEClientTransport`. The `GET /mcp/sse` endpoint opens an SSE stream and returns a session ID. The `POST /mcp/messages` endpoint sends messages to that session.
+
+**Client example (MCP SDK):**
+```typescript
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+
+const client = new Client({ name: 'my-app', version: '1.0.0' }, { capabilities: {} });
+const transport = new SSEClientTransport(new URL('http://localhost:3847/mcp/sse'), {
+  requestInit: { headers: { Authorization: 'Bearer <token>' } },
+});
+await client.connect(transport);
+```
+
+#### CLI Bridge (stdio clients)
+
+For stdio-only clients like Claude Desktop, use the CLI bridge:
+
+```bash
+mcp-router-cli bridge --url http://localhost:3847/mcp --token <token>
+```
+
+Claude Desktop config entry:
+```json
+{
+  "mcpServers": {
+    "mcp-router": {
+      "command": "mcp-router-cli",
+      "args": ["bridge", "--url", "http://localhost:3847/mcp", "--token", "<token>"]
+    }
+  }
+}
+```
+
+### Legacy REST Endpoints
+
+These convenience endpoints provide direct REST access to MCP operations without the SDK protocol framing.
 
 #### Tools
 
