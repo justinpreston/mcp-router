@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { connectCommand } from './commands/connect.js';
+import { bridgeCommand } from './commands/bridge.js';
 import { serveCommand } from './commands/serve.js';
 import { listCommand } from './commands/list.js';
 import { callCommand } from './commands/call.js';
@@ -21,6 +22,7 @@ program
 
 // Register commands
 program.addCommand(connectCommand);
+program.addCommand(bridgeCommand);
 program.addCommand(serveCommand);
 program.addCommand(listCommand);
 program.addCommand(callCommand);

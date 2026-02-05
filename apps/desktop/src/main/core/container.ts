@@ -33,6 +33,7 @@ import type {
   IAuditRepository,
   IToolCatalog,
   IHttpServer,
+  IMcpProtocolServer,
   IMcpAggregator,
   IMcpClientFactory,
   IJsonRpcHandler,
@@ -73,6 +74,7 @@ import { BM25SearchProvider, type ISearchProvider } from '@main/services/catalog
 import { DxtProcessor, type IDxtProcessor } from '@main/services/catalog/dxt-processor';
 import { AppDiscoveryService, type IAppDiscoveryService } from '@main/services/catalog/app-discovery.service';
 import { SecureHttpServer } from '@main/services/http/secure-http-server.service';
+import { McpProtocolServer } from '@main/services/http/mcp-protocol-server.service';
 import { McpAggregator } from '@main/services/mcp/mcp-aggregator.service';
 import { McpClientFactory } from '@main/services/mcp/mcp-client-factory';
 import { JsonRpcHandler } from '@main/services/mcp/json-rpc-handler';
@@ -174,6 +176,7 @@ export function createContainer(): Container {
   // HTTP & MCP Layer
   // ============================================================================
   container.bind<IHttpServer>(TYPES.HttpServer).to(SecureHttpServer);
+  container.bind<IMcpProtocolServer>(TYPES.McpProtocolServer).to(McpProtocolServer);
   container.bind<IMcpAggregator>(TYPES.McpAggregator).to(McpAggregator);
 
   // ============================================================================

@@ -675,6 +675,25 @@ export interface IHttpServer {
   getPort(): number | undefined;
 }
 
+/**
+ * MCP Protocol Server wrapping the official MCP SDK Server.
+ * Handles MCP request routing (tools/list, tools/call, etc.)
+ * and delegates to existing services.
+ * @see Issue #66
+ */
+export interface IMcpProtocolServer {
+  /** Get the underlying MCP SDK Server instance */
+  getServer(): unknown;
+  /** Create a new MCP SDK Server for an SSE session */
+  createSessionServer(): unknown;
+  /** Set per-request auth/project context */
+  setRequestContext(context: { token: Token; projectId?: string; projectSlug?: string }): void;
+  /** Clear the current request context */
+  clearRequestContext(): void;
+  /** Close the server */
+  close(): Promise<void>;
+}
+
 // ============================================================================
 // MCP Transport & Aggregation
 // ============================================================================

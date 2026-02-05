@@ -41,6 +41,7 @@ export const TYPES = {
 
   // HTTP Layer
   HttpServer: Symbol.for('HttpServer'),
+  McpProtocolServer: Symbol.for('McpProtocolServer'),
   TokenValidator: Symbol.for('TokenValidator'),
 
   // Search
