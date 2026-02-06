@@ -1,7 +1,7 @@
 import { injectable, inject } from 'inversify';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { TYPES } from '@main/core/types';
 import type {
   IClientSyncService,
@@ -14,17 +14,66 @@ import type {
   MCPServer,
 } from '@main/core/interfaces';
 
+const HOME = homedir();
+
 /**
- * Client configuration paths for each supported AI client.
- * These are the default locations where each client stores MCP server configs.
+ * Get the config file path for a client app, accounting for platform differences.
+ * Supports macOS, Windows, and Linux.
  */
-const CLIENT_CONFIG_PATHS: Record<ClientAppId, string> = {
-  claude: join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'),
-  cursor: join(homedir(), '.cursor', 'mcp.json'),
-  windsurf: join(homedir(), '.windsurf', 'mcp.json'),
-  vscode: join(homedir(), '.vscode', 'mcp.json'),
-  cline: join(homedir(), '.cline', 'mcp.json'),
-};
+function getPlatformConfigPath(clientId: ClientAppId): string {
+  switch (clientId) {
+    case 'claude':
+      return getClaudeConfigPath();
+    case 'cursor':
+      return join(HOME, '.cursor', 'mcp.json');
+    case 'windsurf':
+      return join(HOME, '.codeium', 'windsurf', 'mcp_config.json');
+    case 'vscode':
+      return getVSCodeConfigPath();
+    case 'cline':
+      return getClineConfigPath();
+    default:
+      return '';
+  }
+}
+
+function getClaudeConfigPath(): string {
+  switch (process.platform) {
+    case 'win32':
+      return join(HOME, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json');
+    case 'darwin':
+      return join(HOME, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+    default: // linux
+      return join(HOME, '.config', 'Claude', 'claude_desktop_config.json');
+  }
+}
+
+function getVSCodeConfigPath(): string {
+  switch (process.platform) {
+    case 'win32':
+      return join(HOME, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json');
+    case 'darwin':
+      return join(HOME, 'Library', 'Application Support', 'Code', 'User', 'mcp.json');
+    default: // linux
+      return join(HOME, '.config', 'Code', 'User', 'mcp.json');
+  }
+}
+
+function getClineConfigPath(): string {
+  const globalStorageDir = getVSCodeGlobalStorageDir();
+  return join(globalStorageDir, 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
+}
+
+function getVSCodeGlobalStorageDir(): string {
+  switch (process.platform) {
+    case 'win32':
+      return join(HOME, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage');
+    case 'darwin':
+      return join(HOME, 'Library', 'Application Support', 'Code', 'User', 'globalStorage');
+    default: // linux
+      return join(HOME, '.config', 'Code', 'User', 'globalStorage');
+  }
+}
 
 /**
  * Human-readable names for each client app.
@@ -54,7 +103,7 @@ const SERVERS_KEY: Record<ClientAppId, string> = {
  */
 const MCP_ROUTER_BRIDGE_CONFIG: ClientMCPServerConfig = {
   command: 'npx',
-  args: ['@mcp-router/cli', 'connect'],
+  args: ['@mcp-router/cli', 'bridge', '--url', 'http://localhost:3847/mcp'],
 };
 
 /**
@@ -74,7 +123,8 @@ export class ClientSyncService implements IClientSyncService {
   async listClients(): Promise<ClientApp[]> {
     const clients: ClientApp[] = [];
 
-    for (const id of Object.keys(CLIENT_CONFIG_PATHS) as ClientAppId[]) {
+    const clientIds: ClientAppId[] = ['claude', 'cursor', 'vscode', 'windsurf', 'cline'];
+    for (const id of clientIds) {
       const installed = await this.isClientInstalled(id);
       let serverCount = 0;
 
@@ -103,7 +153,7 @@ export class ClientSyncService implements IClientSyncService {
    * Get the config file path for a client.
    */
   getConfigPath(clientId: ClientAppId): string {
-    return CLIENT_CONFIG_PATHS[clientId];
+    return getPlatformConfigPath(clientId);
   }
 
   /**
@@ -153,7 +203,7 @@ export class ClientSyncService implements IClientSyncService {
     }
 
     // Ensure directory exists
-    const dir = configPath.substring(0, configPath.lastIndexOf('/'));
+    const dir = dirname(configPath);
     await fs.mkdir(dir, { recursive: true });
 
     // Write new config

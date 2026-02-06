@@ -21,9 +21,9 @@ export class PolicyRepository implements IPolicyRepository {
     const stmt = this.database.db.prepare(`
       INSERT INTO policies (
         id, name, description, scope, scope_id, resource_type,
-        pattern, action, priority, conditions, enabled, created_at, updated_at
+        pattern, action, priority, conditions, redact_fields, enabled, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -37,6 +37,7 @@ export class PolicyRepository implements IPolicyRepository {
       rule.action,
       rule.priority,
       rule.conditions ? JSON.stringify(rule.conditions) : null,
+      rule.redactFields ? JSON.stringify(rule.redactFields) : null,
       rule.enabled ? 1 : 0,
       rule.createdAt,
       rule.updatedAt
@@ -131,6 +132,7 @@ export class PolicyRepository implements IPolicyRepository {
         action = ?,
         priority = ?,
         conditions = ?,
+        redact_fields = ?,
         enabled = ?,
         updated_at = ?
       WHERE id = ?
@@ -146,6 +148,7 @@ export class PolicyRepository implements IPolicyRepository {
       rule.action,
       rule.priority,
       rule.conditions ? JSON.stringify(rule.conditions) : null,
+      rule.redactFields ? JSON.stringify(rule.redactFields) : null,
       rule.enabled ? 1 : 0,
       rule.updatedAt,
       rule.id
@@ -177,6 +180,7 @@ export class PolicyRepository implements IPolicyRepository {
       action: row.action as PolicyAction,
       priority: row.priority,
       conditions: row.conditions ? JSON.parse(row.conditions) : undefined,
+      redactFields: row.redact_fields ? JSON.parse(row.redact_fields) : undefined,
       enabled: row.enabled === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -198,6 +202,7 @@ interface PolicyRow {
   action: string;
   priority: number;
   conditions: string | null;
+  redact_fields: string | null;
   enabled: number;
   created_at: number;
   updated_at: number;

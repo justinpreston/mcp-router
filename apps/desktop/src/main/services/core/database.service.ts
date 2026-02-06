@@ -170,6 +170,7 @@ export class SqliteDatabase implements IDatabase {
             action TEXT NOT NULL,
             priority INTEGER NOT NULL DEFAULT 0,
             conditions TEXT,
+            redact_fields TEXT,
             enabled INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER DEFAULT (strftime('%s', 'now'))
@@ -544,6 +545,13 @@ export class SqliteDatabase implements IDatabase {
           
           CREATE INDEX IF NOT EXISTS idx_memories_episode ON memories(episode_id);
           CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories(expires_at);
+        `,
+      },
+      {
+        name: '007_policy_redact_fields',
+        up: `
+          -- Add redact_fields column to policies table for field-level redaction support
+          ALTER TABLE policies ADD COLUMN redact_fields TEXT;
         `,
       },
     ];

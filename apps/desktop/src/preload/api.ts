@@ -214,7 +214,7 @@ export interface PolicyInfo {
   scopeId?: string;
   resourceType: 'tool' | 'server' | 'resource';
   pattern: string;
-  action: 'allow' | 'deny' | 'require_approval';
+  action: 'allow' | 'deny' | 'require_approval' | 'redact';
   priority: number;
   enabled: boolean;
   createdAt: number;
@@ -228,7 +228,7 @@ export interface PolicyAddConfig {
   scopeId?: string;
   resourceType: 'tool' | 'server' | 'resource';
   pattern: string;
-  action: 'allow' | 'deny' | 'require_approval';
+  action: 'allow' | 'deny' | 'require_approval' | 'redact';
   priority?: number;
   enabled?: boolean;
 }

@@ -283,7 +283,15 @@ export interface IWorkspaceRepository {
 
 export type PolicyScope = 'global' | 'workspace' | 'server' | 'client';
 export type PolicyResourceType = 'tool' | 'server' | 'resource';
-export type PolicyAction = 'allow' | 'deny' | 'require_approval';
+export type PolicyAction = 'allow' | 'deny' | 'require_approval' | 'redact';
+
+/** Scope specificity for precedence ordering (higher = more specific) */
+export const SCOPE_SPECIFICITY: Record<PolicyScope, number> = {
+  global: 1,
+  workspace: 2,
+  server: 2,
+  client: 3,
+};
 
 export interface PolicyCondition {
   field: string;
@@ -302,6 +310,8 @@ export interface PolicyRule {
   action: PolicyAction;
   priority: number;
   conditions?: PolicyCondition[];
+  /** Fields to redact when action is 'redact'. Supports dot-notation for nested paths. */
+  redactFields?: string[];
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
@@ -321,6 +331,8 @@ export interface PolicyDecision {
   ruleId?: string;
   ruleName?: string;
   reason?: string;
+  /** Fields to redact (populated when action is 'redact') */
+  redactions?: string[];
 }
 
 export interface IPolicyEngine {
@@ -385,6 +397,26 @@ export interface IApprovalQueue {
   cancelRequest(requestId: string): Promise<void>;
   cleanupExpired(): Promise<number>;
 }
+
+// ============================================================================
+// Risk Classification
+// ============================================================================
+
+/** Tool risk classification based on tool name pattern matching */
+export type RiskLevel = 'read' | 'write' | 'exec';
+
+/** Regex patterns for classifying tool risk by name */
+export const RISK_PATTERNS = {
+  exec: /(exec|run|shell|command|terminal|bash|sh|spawn|evaluate)/i,
+  write: /(create|update|delete|write|send|post|put|patch|remove|insert|modify|set|add|push)/i,
+} as const;
+
+/** Default rate limit configs per risk level */
+export const RISK_RATE_DEFAULTS: Record<RiskLevel, RateLimitConfig> = {
+  read: { capacity: 100, refillRate: 100, refillInterval: 60_000 },
+  write: { capacity: 30, refillRate: 30, refillInterval: 60_000 },
+  exec: { capacity: 10, refillRate: 10, refillInterval: 60_000 },
+};
 
 // ============================================================================
 // Rate Limiting
