@@ -10,10 +10,13 @@ import { TYPES } from '@main/core/types';
 import type {
   IProjectService,
   IProjectRepository,
+  IProjectToolOverrideRepository,
   ILogger,
   Project,
   ProjectCreateInput,
   ProjectSettings,
+  ProjectToolOverride,
+  ProjectToolOverrideInput,
 } from '@main/core/interfaces';
 
 /**
@@ -31,6 +34,7 @@ function generateSlug(name: string): string {
 export class ProjectService implements IProjectService {
   constructor(
     @inject(TYPES.ProjectRepository) private projectRepository: IProjectRepository,
+    @inject(TYPES.ProjectToolOverrideRepository) private toolOverrideRepository: IProjectToolOverrideRepository,
     @inject(TYPES.Logger) private logger: ILogger
   ) {}
 
@@ -222,5 +226,73 @@ export class ProjectService implements IProjectService {
       projectId,
       workspaceId,
     });
+  }
+
+  // ============================================================================
+  // Tool Override Methods
+  // ============================================================================
+
+  async getToolOverrides(projectId: string): Promise<ProjectToolOverride[]> {
+    const project = await this.projectRepository.findById(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    return this.toolOverrideRepository.findByProjectId(projectId);
+  }
+
+  async getToolOverride(projectId: string, toolName: string): Promise<ProjectToolOverride | null> {
+    return this.toolOverrideRepository.findByProjectAndTool(projectId, toolName);
+  }
+
+  async setToolOverride(projectId: string, input: ProjectToolOverrideInput): Promise<ProjectToolOverride> {
+    const project = await this.projectRepository.findById(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const existing = await this.toolOverrideRepository.findByProjectAndTool(projectId, input.toolName);
+
+    if (existing) {
+      // Update existing override
+      const updated: ProjectToolOverride = {
+        ...existing,
+        visible: input.visible ?? existing.visible,
+        displayName: input.displayName !== undefined ? input.displayName : existing.displayName,
+        defaultArgs: input.defaultArgs !== undefined ? input.defaultArgs : existing.defaultArgs,
+        priority: input.priority ?? existing.priority,
+        updatedAt: now,
+      };
+      await this.toolOverrideRepository.update(updated);
+      this.logger.debug('Tool override updated', { projectId, toolName: input.toolName });
+      return updated;
+    }
+
+    // Create new override
+    const override: ProjectToolOverride = {
+      id: nanoid(),
+      projectId,
+      toolName: input.toolName,
+      visible: input.visible ?? true,
+      displayName: input.displayName,
+      defaultArgs: input.defaultArgs,
+      priority: input.priority ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.toolOverrideRepository.create(override);
+    this.logger.debug('Tool override created', { projectId, toolName: input.toolName });
+    return override;
+  }
+
+  async removeToolOverride(projectId: string, toolName: string): Promise<void> {
+    await this.toolOverrideRepository.deleteByProjectAndTool(projectId, toolName);
+    this.logger.debug('Tool override removed', { projectId, toolName });
+  }
+
+  async removeAllToolOverrides(projectId: string): Promise<void> {
+    await this.toolOverrideRepository.deleteByProjectId(projectId);
+    this.logger.debug('All tool overrides removed', { projectId });
   }
 }

@@ -3,7 +3,7 @@
  */
 import { ipcMain } from 'electron';
 import type { Container } from 'inversify';
-import type { IProjectService, ILogger, Project } from '@main/core/interfaces';
+import type { IProjectService, ILogger, Project, ProjectToolOverride } from '@main/core/interfaces';
 import { TYPES } from '@main/core/types';
 import { z } from 'zod';
 import { validateInput, NonEmptyString, ServerId, WorkspaceId } from './validation-schemas';
@@ -44,6 +44,16 @@ const ProjectUpdateSchema = z.object({
   settings: ProjectSettingsSchema.optional(),
 });
 
+const ToolOverrideSetSchema = z.object({
+  toolName: NonEmptyString.max(200),
+  visible: z.boolean().optional(),
+  displayName: z.string().max(200).optional(),
+  defaultArgs: z.record(z.unknown()).optional(),
+  priority: z.number().int().min(-1000).max(1000).optional(),
+});
+
+const ToolNameSchema = NonEmptyString.max(200);
+
 // ============================================================================
 // API Types
 // ============================================================================
@@ -67,6 +77,18 @@ export interface ProjectInfo {
   updatedAt: number;
 }
 
+export interface ProjectToolOverrideInfo {
+  id: string;
+  projectId: string;
+  toolName: string;
+  visible: boolean;
+  displayName?: string;
+  defaultArgs?: Record<string, unknown>;
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * Transform internal Project to API-safe ProjectInfo.
  */
@@ -83,6 +105,20 @@ function toProjectInfo(project: Project): ProjectInfo {
     settings: project.settings,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
+  };
+}
+
+function toToolOverrideInfo(override: ProjectToolOverride): ProjectToolOverrideInfo {
+  return {
+    id: override.id,
+    projectId: override.projectId,
+    toolName: override.toolName,
+    visible: override.visible,
+    displayName: override.displayName,
+    defaultArgs: override.defaultArgs,
+    priority: override.priority,
+    createdAt: override.createdAt,
+    updatedAt: override.updatedAt,
   };
 }
 
@@ -219,6 +255,80 @@ export function registerProjectHandlers(container: Container): void {
         validProjectId,
         validWorkspaceId
       );
+    }
+  );
+
+  // ==========================================================================
+  // Tool Override Handlers
+  // ==========================================================================
+
+  // List tool overrides for a project
+  ipcMain.handle(
+    'projects:toolOverrides:list',
+    async (_event, projectId: unknown) => {
+      const validProjectId = validateInput(ProjectId, projectId);
+      logger.debug('IPC: projects:toolOverrides:list', { projectId: validProjectId });
+
+      const overrides = await projectService.getToolOverrides(validProjectId);
+      return overrides.map(toToolOverrideInfo);
+    }
+  );
+
+  // Get a specific tool override
+  ipcMain.handle(
+    'projects:toolOverrides:get',
+    async (_event, projectId: unknown, toolName: unknown) => {
+      const validProjectId = validateInput(ProjectId, projectId);
+      const validToolName = validateInput(ToolNameSchema, toolName);
+      logger.debug('IPC: projects:toolOverrides:get', {
+        projectId: validProjectId,
+        toolName: validToolName,
+      });
+
+      const override = await projectService.getToolOverride(validProjectId, validToolName);
+      return override ? toToolOverrideInfo(override) : null;
+    }
+  );
+
+  // Set (create or update) a tool override
+  ipcMain.handle(
+    'projects:toolOverrides:set',
+    async (_event, projectId: unknown, input: unknown) => {
+      const validProjectId = validateInput(ProjectId, projectId);
+      const validInput = validateInput(ToolOverrideSetSchema, input);
+      logger.debug('IPC: projects:toolOverrides:set', {
+        projectId: validProjectId,
+        toolName: validInput.toolName,
+      });
+
+      const override = await projectService.setToolOverride(validProjectId, validInput);
+      return toToolOverrideInfo(override);
+    }
+  );
+
+  // Remove a specific tool override
+  ipcMain.handle(
+    'projects:toolOverrides:remove',
+    async (_event, projectId: unknown, toolName: unknown) => {
+      const validProjectId = validateInput(ProjectId, projectId);
+      const validToolName = validateInput(ToolNameSchema, toolName);
+      logger.debug('IPC: projects:toolOverrides:remove', {
+        projectId: validProjectId,
+        toolName: validToolName,
+      });
+
+      await projectService.removeToolOverride(validProjectId, validToolName);
+    }
+  );
+
+  // Remove all tool overrides for a project
+  ipcMain.handle(
+    'projects:toolOverrides:removeAll',
+    async (_event, projectId: unknown) => {
+      const validProjectId = validateInput(ProjectId, projectId);
+      logger.debug('IPC: projects:toolOverrides:removeAll', { projectId: validProjectId });
+
+      await projectService.removeAllToolOverrides(validProjectId);
     }
   );
 }

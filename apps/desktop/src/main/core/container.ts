@@ -14,6 +14,7 @@ import type {
   IWorkspaceRepository,
   IProjectService,
   IProjectRepository,
+  IProjectToolOverrideRepository,
   IWorkflowService,
   IWorkflowRepository,
   IWorkflowExecutionRepository,
@@ -109,6 +110,7 @@ import { PolicyRepository } from '@main/repositories/policy.repository';
 import { MemoryRepository } from '@main/repositories/memory.repository';
 import { AuditRepository } from '@main/repositories/audit.repository';
 import { ProjectRepository } from '@main/repositories/project.repository';
+import { ProjectToolOverrideRepository } from '@main/repositories/project-tool-override.repository';
 import { WorkflowRepository } from '@main/repositories/workflow.repository';
 import { WorkflowExecutionRepository } from '@main/repositories/workflow-execution.repository';
 import { HookRepository } from '@main/repositories/hook.repository';
@@ -141,6 +143,7 @@ export function createContainer(): Container {
   container.bind<IMemoryRepository>(TYPES.MemoryRepository).to(MemoryRepository);
   container.bind<IAuditRepository>(TYPES.AuditRepository).to(AuditRepository);
   container.bind<IProjectRepository>(TYPES.ProjectRepository).to(ProjectRepository);
+  container.bind<IProjectToolOverrideRepository>(TYPES.ProjectToolOverrideRepository).to(ProjectToolOverrideRepository);
   container.bind<IWorkflowRepository>(TYPES.WorkflowRepository).to(WorkflowRepository);
   container.bind<IWorkflowExecutionRepository>(TYPES.WorkflowExecutionRepository).to(WorkflowExecutionRepository);
   container.bind<IHookRepository>(TYPES.HookRepository).to(HookRepository);

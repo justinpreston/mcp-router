@@ -67,6 +67,26 @@ export interface ElectronAPI {
     removeServer: (workspaceId: string, serverId: string) => Promise<void>;
   };
 
+  // Project management
+  projects: {
+    list: () => Promise<ProjectInfo[]>;
+    get: (id: string) => Promise<ProjectInfo | null>;
+    getBySlug: (slug: string) => Promise<ProjectInfo | null>;
+    create: (config: ProjectCreateConfig) => Promise<ProjectInfo>;
+    update: (id: string, updates: Partial<ProjectCreateConfig>) => Promise<ProjectInfo>;
+    delete: (id: string) => Promise<void>;
+    addServer: (projectId: string, serverId: string) => Promise<void>;
+    removeServer: (projectId: string, serverId: string) => Promise<void>;
+    addWorkspace: (projectId: string, workspaceId: string) => Promise<void>;
+    removeWorkspace: (projectId: string, workspaceId: string) => Promise<void>;
+    // Tool overrides
+    listToolOverrides: (projectId: string) => Promise<ProjectToolOverrideInfo[]>;
+    getToolOverride: (projectId: string, toolName: string) => Promise<ProjectToolOverrideInfo | null>;
+    setToolOverride: (projectId: string, input: ToolOverrideSetConfig) => Promise<ProjectToolOverrideInfo>;
+    removeToolOverride: (projectId: string, toolName: string) => Promise<void>;
+    removeAllToolOverrides: (projectId: string) => Promise<void>;
+  };
+
   // Memory management
   memory: {
     store: (input: MemoryInput) => Promise<MemoryInfo>;
@@ -262,6 +282,44 @@ export interface WorkspaceInfo {
 export interface WorkspaceAddConfig {
   name: string;
   path: string;
+}
+
+// Project types
+export interface ProjectInfo {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  serverIds: string[];
+  workspaceIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectCreateConfig {
+  name: string;
+  slug?: string;
+  description?: string;
+}
+
+export interface ProjectToolOverrideInfo {
+  id: string;
+  projectId: string;
+  toolName: string;
+  visible: boolean;
+  displayName?: string;
+  defaultArgs?: Record<string, unknown>;
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ToolOverrideSetConfig {
+  toolName: string;
+  visible?: boolean;
+  displayName?: string;
+  defaultArgs?: Record<string, unknown>;
+  priority?: number;
 }
 
 // Memory types
