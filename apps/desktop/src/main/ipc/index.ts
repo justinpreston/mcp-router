@@ -13,6 +13,7 @@ import { registerMemoryHandlers } from './memory.handler';
 import { registerCatalogHandlers } from './catalog.handler';
 import { registerUpdaterHandlers } from './updater.handler';
 import { registerDiscoveryHandlers } from './discovery.handler';
+import { registerClientSyncHandlers } from './sync.handler';
 
 export { registerAppHandlers, registerWindowHandlers } from './app.handler';
 export { registerServerHandlers } from './servers.handler';
@@ -28,6 +29,7 @@ export { registerMemoryHandlers } from './memory.handler';
 export { registerCatalogHandlers } from './catalog.handler';
 export { registerUpdaterHandlers } from './updater.handler';
 export { registerDiscoveryHandlers } from './discovery.handler';
+export { registerClientSyncHandlers } from './sync.handler';
 export * from './validation-schemas';
 
 /**
@@ -55,6 +57,7 @@ export function registerAllIpcHandlers(container: Container): void {
   registerCatalogHandlers(container);
   registerUpdaterHandlers(container);
   registerDiscoveryHandlers(container);
+  registerClientSyncHandlers(container);
 
   // Setup background tasks
   setupApprovalNotifications(container);

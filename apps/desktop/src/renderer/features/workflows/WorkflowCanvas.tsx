@@ -21,6 +21,8 @@ import { EndNode } from './nodes/EndNode';
 import { McpCallNode } from './nodes/McpCallNode';
 import { ConditionalNode } from './nodes/ConditionalNode';
 import { TransformNode } from './nodes/TransformNode';
+import { MemoryQueryNode } from './nodes/MemoryQueryNode';
+import { MemoryStoreNode } from './nodes/MemoryStoreNode';
 import type { WorkflowNode, WorkflowEdge } from './types';
 
 export interface WorkflowCanvasProps {
@@ -42,6 +44,8 @@ const nodeTypes: NodeTypes = {
   mcpCall: McpCallNode,
   conditional: ConditionalNode,
   transform: TransformNode,
+  memoryQuery: MemoryQueryNode,
+  memoryStore: MemoryStoreNode,
 };
 
 /**

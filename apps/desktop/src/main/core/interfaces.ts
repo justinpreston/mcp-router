@@ -37,6 +37,39 @@ export interface ILogger {
 }
 
 // ============================================================================
+// Pagination
+// ============================================================================
+
+/**
+ * Cursor-based pagination options.
+ * More efficient than offset-based pagination for large datasets.
+ */
+export interface PaginationOptions {
+  /** Cursor from previous page's nextCursor */
+  cursor?: string;
+  /** Max items per page (default: 50) */
+  limit?: number;
+  /** Field to order by (default: createdAt) */
+  orderBy?: string;
+  /** Sort direction (default: desc) */
+  orderDir?: 'asc' | 'desc';
+}
+
+/**
+ * Paginated response with cursor for next page.
+ */
+export interface PaginatedResponse<T> {
+  /** Items for this page */
+  items: T[];
+  /** Cursor to fetch next page (undefined if no more pages) */
+  nextCursor?: string;
+  /** Whether more items exist after this page */
+  hasMore: boolean;
+  /** Total count (optional, can be expensive for large tables) */
+  totalCount?: number;
+}
+
+// ============================================================================
 // Token & Authentication
 // ============================================================================
 
@@ -382,10 +415,15 @@ export interface IRateLimiter {
 // Memory Layer
 // ============================================================================
 
+/** Memory entry type classification */
+export type MemoryType = 'fact' | 'preference' | 'instruction' | 'context' | 'note';
+
 export interface Memory {
   id: string;
   content: string;
   contentHash: string;
+  type: MemoryType;
+  importance: number;
   tags: string[];
   embedding?: number[];
   source?: string;
@@ -398,6 +436,8 @@ export interface Memory {
 
 export interface MemoryInput {
   content: string;
+  type?: MemoryType;
+  importance?: number;
   tags?: string[];
   source?: string;
   metadata?: Record<string, unknown>;
@@ -405,6 +445,7 @@ export interface MemoryInput {
 
 export interface MemorySearchOptions {
   tags?: string[];
+  types?: MemoryType[];
   minScore?: number;
   topK?: number;
   includeEmbeddings?: boolean;
@@ -415,6 +456,57 @@ export interface MemorySearchResult {
   score: number;
 }
 
+/** Semantic search options using vector similarity */
+export interface SemanticSearchOptions {
+  query: string;
+  limit?: number;
+  minSimilarity?: number;
+  types?: MemoryType[];
+}
+
+/** Hybrid search combining text and semantic */
+export interface HybridSearchOptions {
+  query: string;
+  limit?: number;
+  minSimilarity?: number;
+  types?: MemoryType[];
+  semanticWeight?: number; // 0-1, default 0.7
+}
+
+/** Memory statistics for dashboard */
+export interface MemoryStatistics {
+  total: number;
+  byType: Record<MemoryType, number>;
+  byTag: Record<string, number>;
+  topTags: { tag: string; count: number }[];
+  averageImportance: number;
+  withEmbeddings: number;
+  createdToday: number;
+  createdThisWeek: number;
+  createdThisMonth: number;
+  recentlyAccessed: number;
+  averageAccessCount: number;
+}
+
+/** Export format options */
+export type MemoryExportFormat = 'json' | 'markdown';
+
+/** Export options */
+export interface MemoryExportOptions {
+  format: MemoryExportFormat;
+  types?: MemoryType[];
+  tags?: string[];
+  ids?: string[];
+}
+
+/** Import result */
+export interface MemoryImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+}
+
 export interface IMemoryService {
   store(input: MemoryInput): Promise<Memory>;
   retrieve(memoryId: string): Promise<Memory | null>;
@@ -422,7 +514,30 @@ export interface IMemoryService {
   searchByTags(tags: string[], options?: MemorySearchOptions): Promise<Memory[]>;
   update(memoryId: string, updates: Partial<MemoryInput>): Promise<Memory>;
   delete(memoryId: string): Promise<void>;
+  /** @deprecated Use getAllPaginated for better performance with large datasets */
   getAll(options?: { limit?: number; offset?: number }): Promise<Memory[]>;
+  /** Cursor-based pagination for efficient large dataset access */
+  getAllPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>>;
+  
+  // Semantic search (AI Hub feature)
+  searchSemantic(options: SemanticSearchOptions): Promise<MemorySearchResult[]>;
+  searchHybrid(options: HybridSearchOptions): Promise<MemorySearchResult[]>;
+  
+  // Statistics & analytics (AI Hub feature)
+  getStatistics(): Promise<MemoryStatistics>;
+  getEmbeddingStatus(): Promise<{ total: number; withEmbedding: number; withoutEmbedding: number }>;
+  regenerateEmbeddings(onProgress?: (current: number, total: number) => void): Promise<{ success: number; failed: number }>;
+  
+  // Import/Export (AI Hub feature)
+  exportMemories(options: MemoryExportOptions): Promise<string>;
+  importMemories(content: string, format: MemoryExportFormat): Promise<MemoryImportResult>;
+  
+  // Bulk tag operations (AI Hub feature)
+  bulkAddTag(memoryIds: string[], tag: string): Promise<number>;
+  bulkRemoveTag(memoryIds: string[], tag: string): Promise<number>;
+  renameTag(oldTag: string, newTag: string): Promise<number>;
+  deleteTag(tag: string): Promise<number>;
+  getAllTags(): Promise<{ tag: string; count: number }[]>;
 }
 
 export interface IMemoryRepository {
@@ -430,10 +545,20 @@ export interface IMemoryRepository {
   findById(id: string): Promise<Memory | null>;
   findByHash(contentHash: string): Promise<Memory | null>;
   findByTags(tags: string[]): Promise<Memory[]>;
+  findByTypes(types: MemoryType[]): Promise<Memory[]>;
+  /** @deprecated Use findPaginated for better performance with large datasets */
   findAll(options?: { limit?: number; offset?: number }): Promise<Memory[]>;
+  /** Cursor-based pagination for efficient large dataset access */
+  findPaginated(options?: PaginationOptions): Promise<PaginatedResponse<Memory>>;
   update(memory: Memory): Promise<Memory>;
   delete(id: string): Promise<void>;
   incrementAccessCount(id: string): Promise<Memory>;
+  bulkAddTag(ids: string[], tag: string): Promise<number>;
+  bulkRemoveTag(ids: string[], tag: string): Promise<number>;
+  renameTag(oldTag: string, newTag: string): Promise<number>;
+  deleteTag(tag: string): Promise<number>;
+  getAllTags(): Promise<{ tag: string; count: number }[]>;
+  count(): Promise<number>;
 }
 
 // ============================================================================
@@ -466,17 +591,26 @@ export interface AuditEvent {
   timestamp: number;
 }
 
+export interface AuditQueryOptions {
+  type?: AuditEventType;
+  clientId?: string;
+  serverId?: string;
+  startTime?: number;
+  endTime?: number;
+  /** @deprecated Use cursor for better performance */
+  limit?: number;
+  /** @deprecated Use cursor for better performance */
+  offset?: number;
+}
+
 export interface IAuditService {
   log(event: Omit<AuditEvent, 'id' | 'timestamp'>): Promise<void>;
-  query(options: {
-    type?: AuditEventType;
-    clientId?: string;
-    serverId?: string;
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-    offset?: number;
-  }): Promise<AuditEvent[]>;
+  /** @deprecated Use queryPaginated for better performance with large datasets */
+  query(options: AuditQueryOptions): Promise<AuditEvent[]>;
+  /** Cursor-based pagination for audit event queries */
+  queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>>;
   getStats(options?: { startTime?: number; endTime?: number }): Promise<{
     totalEvents: number;
     byType: Record<string, number>;
@@ -488,15 +622,12 @@ export interface IAuditService {
 export interface IAuditRepository {
   create(event: AuditEvent): Promise<AuditEvent>;
   findById(id: string): Promise<AuditEvent | null>;
-  query(options: {
-    type?: AuditEventType;
-    clientId?: string;
-    serverId?: string;
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-    offset?: number;
-  }): Promise<AuditEvent[]>;
+  /** @deprecated Use queryPaginated for better performance */
+  query(options: AuditQueryOptions): Promise<AuditEvent[]>;
+  /** Cursor-based pagination for efficient large dataset queries */
+  queryPaginated(
+    options: AuditQueryOptions & PaginationOptions
+  ): Promise<PaginatedResponse<AuditEvent>>;
   count(options?: {
     type?: AuditEventType;
     startTime?: number;
@@ -544,6 +675,25 @@ export interface IHttpServer {
   getPort(): number | undefined;
 }
 
+/**
+ * MCP Protocol Server wrapping the official MCP SDK Server.
+ * Handles MCP request routing (tools/list, tools/call, etc.)
+ * and delegates to existing services.
+ * @see Issue #66
+ */
+export interface IMcpProtocolServer {
+  /** Get the underlying MCP SDK Server instance */
+  getServer(): unknown;
+  /** Create a new MCP SDK Server for an SSE session */
+  createSessionServer(): unknown;
+  /** Set per-request auth/project context */
+  setRequestContext(context: { token: Token; projectId?: string; projectSlug?: string }): void;
+  /** Clear the current request context */
+  clearRequestContext(): void;
+  /** Close the server */
+  close(): Promise<void>;
+}
+
 // ============================================================================
 // MCP Transport & Aggregation
 // ============================================================================
@@ -577,6 +727,37 @@ export interface IMcpAggregator {
   listAllPrompts(tokenId: string): Promise<McpPrompt[]>;
   listAllResources(tokenId: string): Promise<McpResource[]>;
 }
+
+// ============================================================================
+// Built-in MCP Tools
+// ============================================================================
+
+/**
+ * Built-in tool call result.
+ */
+export interface BuiltinToolResult {
+  success: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+/**
+ * Service providing built-in MCP tools (memory, etc.) that are exposed
+ * alongside external MCP server tools.
+ */
+export interface IBuiltinToolsService {
+  /** Get all built-in tools available */
+  getTools(): MCPTool[];
+  
+  /** Check if a tool name is a built-in tool */
+  isBuiltinTool(toolName: string): boolean;
+  
+  /** Execute a built-in tool */
+  callTool(toolName: string, args: Record<string, unknown>): Promise<BuiltinToolResult>;
+}
+
+/** Special server ID for built-in tools */
+export const BUILTIN_SERVER_ID = '_builtin';
 
 // ============================================================================
 // MCP Client & Transport Layer
@@ -1387,4 +1568,56 @@ export interface ITrayService {
   showNotification(title: string, body: string): void;
   /** Update the context menu with current state */
   updateContextMenu(): Promise<void>;
+}
+
+// ============================================================================
+// Client Sync (AI Hub Feature Parity)
+// ============================================================================
+
+/** Supported AI client applications */
+export type ClientAppId = 'claude' | 'cursor' | 'windsurf' | 'vscode' | 'cline';
+
+/** Client application info */
+export interface ClientApp {
+  id: ClientAppId;
+  name: string;
+  installed: boolean;
+  configPath: string;
+  serverCount: number;
+}
+
+/** MCP server config as stored in client apps */
+export interface ClientMCPServerConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  type?: 'stdio' | 'http' | 'sse' | 'streamable-http';
+  url?: string;
+}
+
+/** Sync operation result */
+export interface SyncResult {
+  clientId: ClientAppId;
+  imported: number;
+  exported: number;
+  errors: string[];
+}
+
+/**
+ * Client sync service for managing AI client configurations.
+ * Enables import/export of MCP server configs with Claude, Cursor, etc.
+ */
+export interface IClientSyncService {
+  /** List all supported client apps and their status */
+  listClients(): Promise<ClientApp[]>;
+  /** Get servers configured in a client app */
+  getClientServers(clientId: ClientAppId): Promise<Record<string, ClientMCPServerConfig>>;
+  /** Import servers from a client app into MCP Router */
+  importFromClient(clientId: ClientAppId): Promise<SyncResult>;
+  /** Export MCP Router servers to a client app */
+  exportToClient(clientId: ClientAppId, serverIds?: string[]): Promise<SyncResult>;
+  /** Get config file path for a client */
+  getConfigPath(clientId: ClientAppId): string;
+  /** Check if a client is installed */
+  isClientInstalled(clientId: ClientAppId): Promise<boolean>;
 }

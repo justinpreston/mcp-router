@@ -72,10 +72,21 @@ export interface ElectronAPI {
     store: (input: MemoryInput) => Promise<MemoryInfo>;
     get: (id: string) => Promise<MemoryInfo | null>;
     search: (query: string, options?: MemorySearchOptions) => Promise<MemorySearchResultInfo[]>;
+    searchSemantic: (query: string, options?: MemorySearchOptions) => Promise<MemorySearchResultInfo[]>;
+    searchHybrid: (query: string, options?: MemorySearchOptions) => Promise<MemorySearchResultInfo[]>;
     searchByTags: (tags: string[], options?: MemorySearchOptions) => Promise<MemoryInfo[]>;
+    searchByType: (type: MemoryType, options?: { limit?: number; offset?: number }) => Promise<MemoryInfo[]>;
     list: (options?: { limit?: number; offset?: number }) => Promise<MemoryInfo[]>;
     update: (id: string, updates: Partial<MemoryInput>) => Promise<MemoryInfo>;
     delete: (id: string) => Promise<void>;
+    getStatistics: () => Promise<MemoryStatistics>;
+    addTags: (id: string, tags: string[]) => Promise<MemoryInfo>;
+    removeTags: (id: string, tags: string[]) => Promise<MemoryInfo>;
+    bulkAddTags: (ids: string[], tags: string[]) => Promise<number>;
+    bulkRemoveTags: (ids: string[], tags: string[]) => Promise<number>;
+    export: (format: 'json' | 'markdown', filter?: MemoryExportFilter) => Promise<string>;
+    import: (data: string, format: 'json' | 'markdown') => Promise<MemoryImportResult>;
+    regenerateEmbeddings: () => Promise<number>;
   };
 
   // Tool catalog
@@ -113,6 +124,16 @@ export interface ElectronAPI {
     getState: () => Promise<UpdateStateInfo>;
     getConfig: () => Promise<UpdateConfigInfo>;
     setConfig: (config: Partial<UpdateConfigInfo>) => Promise<UpdateConfigInfo>;
+  };
+
+  // Client sync (AI Hub feature parity)
+  sync: {
+    listClients: () => Promise<ClientAppInfo[]>;
+    getClientServers: (clientId: string) => Promise<Record<string, ClientMCPServerConfigInfo>>;
+    isClientInstalled: (clientId: string) => Promise<boolean>;
+    getConfigPath: (clientId: string) => Promise<string>;
+    importFromClient: (clientId: string) => Promise<SyncResultInfo>;
+    exportToClient: (clientId: string, serverIds?: string[]) => Promise<SyncResultInfo>;
   };
 
   // Event listeners
@@ -244,10 +265,14 @@ export interface WorkspaceAddConfig {
 }
 
 // Memory types
+export type MemoryType = 'note' | 'conversation' | 'code' | 'document' | 'task' | 'reference';
+
 export interface MemoryInfo {
   id: string;
   content: string;
   tags: string[];
+  type: MemoryType;
+  importance: number;
   source?: string;
   metadata?: Record<string, unknown>;
   accessCount: number;
@@ -259,6 +284,8 @@ export interface MemoryInfo {
 export interface MemoryInput {
   content: string;
   tags?: string[];
+  type?: MemoryType;
+  importance?: number;
   source?: string;
   metadata?: Record<string, unknown>;
 }
@@ -272,6 +299,32 @@ export interface MemorySearchOptions {
 export interface MemorySearchResultInfo {
   memory: MemoryInfo;
   score: number;
+}
+
+export interface MemoryStatistics {
+  totalCount: number;
+  byType: Record<MemoryType, number>;
+  byTag: Record<string, number>;
+  avgImportance: number;
+  avgAccessCount: number;
+  totalAccessCount: number;
+  recentlyAccessed: number;
+  oldestMemory?: number;
+  newestMemory?: number;
+}
+
+export interface MemoryExportFilter {
+  tags?: string[];
+  type?: MemoryType;
+  minImportance?: number;
+  startDate?: number;
+  endDate?: number;
+}
+
+export interface MemoryImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
 }
 
 // Tool catalog types
@@ -393,4 +446,30 @@ export interface SaveDialogOptions {
   title?: string;
   defaultPath?: string;
   filters?: Array<{ name: string; extensions: string[] }>;
+}
+
+// Client sync types (AI Hub feature parity)
+export type ClientAppIdType = 'claude' | 'cursor' | 'windsurf' | 'vscode' | 'cline';
+
+export interface ClientAppInfo {
+  id: ClientAppIdType;
+  name: string;
+  installed: boolean;
+  configPath: string;
+  serverCount: number;
+}
+
+export interface ClientMCPServerConfigInfo {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  type?: 'stdio' | 'http' | 'sse' | 'streamable-http';
+  url?: string;
+}
+
+export interface SyncResultInfo {
+  clientId: ClientAppIdType;
+  imported: number;
+  exported: number;
+  errors: string[];
 }

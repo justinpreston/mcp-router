@@ -31,7 +31,7 @@ release/
 .env.*.local
 
 # Logs
-logs/
+/logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*

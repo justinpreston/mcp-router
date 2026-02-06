@@ -151,6 +151,8 @@ export function createMockMemory(overrides?: Partial<Memory>): Memory {
     id: `memory-${nanoid(8)}`,
     content,
     contentHash: `hash-${nanoid(16)}`,
+    type: 'note',
+    importance: 0.5,
     tags: ['test'],
     accessCount: 0,
     createdAt: now,
